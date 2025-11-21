@@ -8,7 +8,6 @@ import './Page.css';
 
 // URL-en til din backend
 const API_BASE_URL = 'http://localhost:8000'; // Eller URL-en du bruker for FastAPI
-const N8N_WEBHOOK_URL = 'http://localhost:5678/webhook-test/your-n8n-webhook-id'; // Erstatt med din faktiske n8n webhook URL
 
 // --- Interfaces (Datamodeller) ---
 
@@ -91,6 +90,10 @@ const Page: React.FC = () => {
       const formattedTodos: Todo[] = data.todos.map((t: any) => ({
         ...t,
         id: String(t.id), // Sikrer at ID er en streng for React keys
+        // VIKTIG FIKS: Bruk Type Assertion her for å matche den strenge typen i interfacet
+        status: t.status as Todo['status'],
+        priority: t.priority as Todo['priority'],
+        
         // Sikrer at komplekse lister er initialisert
         tags: t.tags || [], 
         subtasks: t.subtasks || [],
@@ -164,6 +167,9 @@ const Page: React.FC = () => {
         tags: result.todo.tags || [],
         subtasks: result.todo.subtasks || [],
         comments: result.todo.comments || [],
+        // VIKTIG: Gjør type assertion også her for å sikre status og priority
+        status: result.todo.status as Todo['status'],
+        priority: result.todo.priority as Todo['priority'],
       };
       
       setTodos((prevTodos) => [createdTodo, ...prevTodos]);
@@ -193,7 +199,7 @@ const Page: React.FC = () => {
     if (!todoToUpdate) return;
 
     const newCompletedStatus = !todoToUpdate.completed;
-    const newStatus = newCompletedStatus ? 'done' : 'todo';
+    const newStatus: Todo['status'] = newCompletedStatus ? 'done' : 'todo';
 
     // 1. Optimal oppdatering av UI
     const updatedTodos = todos.map((todo) =>
@@ -255,13 +261,21 @@ const Page: React.FC = () => {
     const todoToUpdate = todos.find((t) => t.id === id);
     if (!todoToUpdate) return;
 
+    // Spesialhåndtering for priority og status for å sikre riktig type i state
+    let typedValue = value;
+    if (field === 'priority' && typeof value === 'string') {
+        typedValue = value as Todo['priority'];
+    } else if (field === 'status' && typeof value === 'string') {
+        typedValue = value as Todo['status'];
+    }
+
     // Oppdater UI umiddelbart
     const updatedTodos = todos.map((todo) =>
-      todo.id === id ? { ...todo, [field]: value } : todo
+      todo.id === id ? { ...todo, [field]: typedValue } : todo
     );
     setTodos(updatedTodos);
     
-    const updatePayload = { [field]: value };
+    const updatePayload = { [field]: typedValue };
 
     try {
       await fetch(`${API_BASE_URL}/todos/${id}`, {
@@ -269,7 +283,7 @@ const Page: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatePayload)
       });
-      await sendToN8N('onUpdate', { ...todoToUpdate, [field]: value });
+      await sendToN8N('onUpdate', { ...todoToUpdate, [field]: typedValue });
     } catch (err) {
       console.error(`Kunne ikke lagre felt ${String(field)} på serveren:`, err);
     }
@@ -385,7 +399,7 @@ const Page: React.FC = () => {
         {todo.dueDate && (
           <div className="detail-row">
             <Calendar size={14} />
-            <span>Due: {new Date(todo.dueDate).toLocaleDateString()}</span>
+            <span>Due: {todo.dueDate ? new Date(todo.dueDate).toLocaleDateString() : 'N/A'}</span>
           </div>
         )}
         {todo.assignee && (
@@ -435,9 +449,10 @@ const Page: React.FC = () => {
               onChange={(e) => setNewComment(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
-                  // Her må du bruke state-verdien, ikke (e.target as any).value
+                  // Bruker state-verdien `newComment`
                   handleAddComment(todo.id);
-                  setNewComment(''); // Nullstill etter sendt
+                  // Nullstill etter sendt
+                  setNewComment(''); 
                 }
               }}
             />
