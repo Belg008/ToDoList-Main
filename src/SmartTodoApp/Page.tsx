@@ -1,43 +1,139 @@
-/* Completed todo style */
-.todo-card.completed {
-  opacity: 0.6;
-  background: #f0f0f3;
-  text-decoration: line-through;
-}
+import React, { useState, useEffect } from "react";
+import "./Page.macos.css";
 
-/* Icons */
-.icon-check {
-  color: #007aff;
-  font-weight: 700;
-  margin-right: 6px;
-}
+type Todo = {
+  id: number;
+  title: string;
+  description: string;
+  priority: "low" | "medium" | "high";
+  completed: boolean;
+};
 
-.icon-empty {
-  color: rgba(0,0,0,0.3);
-  margin-right: 6px;
-}
+export default function Page() {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState<"low" | "medium" | "high">("low");
+  const [todos, setTodos] = useState<Todo[]>([]);
 
-/* Delete button */
-.delete-button {
-  background: transparent;
-  border: none;
-  color: #d40000;
-  font-size: 14px;
-  cursor: pointer;
-  margin-left: auto;
-  transition: transform 0.12s;
-}
+  useEffect(() => {
+    const saved = localStorage.getItem("todos");
+    if (saved) setTodos(JSON.parse(saved));
+  }, []);
 
-.delete-button:hover {
-  transform: scale(1.2);
-}
+  useEffect(() => {
+    localStorage.setItem("todos", JSON.stringify(todos));
+  }, [todos]);
 
-/* Fade-in animation for new todos */
-.fade-in {
-  animation: fadeIn 0.25s ease-out;
-}
+  const addTodo = () => {
+    if (!title.trim()) return;
+    const newTodo: Todo = {
+      id: Date.now(),
+      title,
+      description,
+      priority,
+      completed: false,
+    };
+    setTodos([newTodo, ...todos]);
+    setTitle("");
+    setDescription("");
+    setPriority("low");
+  };
 
-@keyframes fadeIn {
-  0% { opacity: 0; transform: translateY(-10px); }
-  100% { opacity: 1; transform: translateY(0); }
+  const toggleComplete = (id: number) => {
+    setTodos(
+      todos.map((todo) =>
+        todo.id === id ? { ...todo, completed: !todo.completed } : todo
+      )
+    );
+  };
+
+  const deleteTodo = (id: number) => {
+    setTodos(todos.filter((todo) => todo.id !== id));
+  };
+
+  return (
+    <div className="macos-layout">
+      <aside className="macos-sidebar">
+        <div className="sidebar-title">SmartTodo</div>
+        <div className="sidebar-section">
+          <div className="sidebar-item active">All Tasks</div>
+          <div className="sidebar-item">In Progress</div>
+          <div className="sidebar-item">Completed</div>
+        </div>
+      </aside>
+
+      <main className="macos-content">
+        <div className="content-card fade-in">
+          <h1 className="section-title">Create new task</h1>
+
+          <input
+            className="macos-input"
+            placeholder="Title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+
+          <textarea
+            className="macos-textarea"
+            placeholder="Description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+
+          <select
+            className="macos-select"
+            value={priority}
+            onChange={(e) =>
+              setPriority(e.target.value as "low" | "medium" | "high")
+            }
+          >
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+
+          <button className="macos-button" onClick={addTodo}>
+            Add Todo
+          </button>
+        </div>
+
+        <div className="content-card">
+          <h1 className="section-title">Tasks</h1>
+
+          <div className="todo-list">
+            {todos.map((todo) => (
+              <div
+                key={todo.id}
+                className={`todo-card ${todo.completed ? "completed" : ""}`}
+              >
+                <div
+                  className="todo-title"
+                  onClick={() => toggleComplete(todo.id)}
+                >
+                  {todo.completed ? (
+                    <span className="icon-check">✔︎</span>
+                  ) : (
+                    <span className="icon-empty">○</span>
+                  )}{" "}
+                  {todo.title}
+                </div>
+                <div className="todo-description">{todo.description}</div>
+                <div className="badges-row">
+                  <span className={`badge badge-${todo.priority}`}>
+                    {todo.priority.toUpperCase()}
+                  </span>
+                  <button
+                    className="delete-button"
+                    onClick={() => deleteTodo(todo.id)}
+                  >
+                    ✖
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
 }
