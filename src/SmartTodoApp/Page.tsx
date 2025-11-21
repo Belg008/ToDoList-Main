@@ -46,6 +46,7 @@ interface Todo {
 // --- Hovedkomponent ---
 
 const Page: React.FC = () => {
+  // Original states are restored
   const [todos, setTodos] = useState<Todo[]>([]);
   const [input, setInput] = useState('');
   const [description, setDescription] = useState('');
@@ -71,14 +72,12 @@ const Page: React.FC = () => {
       }
       const data = await response.json();
       
+      // Sikrer at dataen matcher Todo-grensesnittet
       const formattedTodos: Todo[] = data.todos.map((t: any) => ({
         ...t,
-        id: String(t.id), // Sikrer at ID er en streng for React keys
-        // Bruk Type Assertion for å matche de strenge typene vi definerte
-        status: t.status as Todo['status'],
-        priority: t.priority as Todo['priority'],
-        
-        // Sikrer at komplekse lister er initialisert
+        id: String(t.id), // ID må være en streng for React keys
+        status: (t.status || 'todo') as Todo['status'],
+        priority: (t.priority || 'medium') as Todo['priority'],
         tags: t.tags || [], 
         subtasks: t.subtasks || [],
         comments: t.comments || [],
@@ -101,7 +100,7 @@ const Page: React.FC = () => {
     fetchTodos();
   }, [fetchTodos]);
 
-  // --- Oppgavelogikk (CRUD) ---
+  // --- Hjelpefunksjoner ---
 
   const resetInputFields = () => {
     setInput('');
@@ -113,6 +112,23 @@ const Page: React.FC = () => {
     setNewTag('');
     setShowAdvancedForm(false);
   };
+
+  const getPriorityIcon = (p: Todo['priority']) => {
+    switch (p) {
+      case 'urgent':
+      case 'high':
+        return <AlertCircle size={16} className="text-danger" />;
+      case 'medium':
+        return <CheckCircle2 size={16} className="text-warning" />;
+      case 'low':
+        return <Circle size={16} className="text-success" />;
+      default:
+        return null;
+    }
+  };
+
+
+  // --- API Logikk (CRUD) ---
 
   const handleAddTodo = async () => {
     if (!input.trim()) return;
@@ -146,12 +162,12 @@ const Page: React.FC = () => {
       const result = await response.json();
       const createdTodo: Todo = { 
         ...result.todo, 
-        id: String(result.todo.id), // Sikrer at ID er string
+        id: String(result.todo.id),
         tags: result.todo.tags || [],
         subtasks: result.todo.subtasks || [],
         comments: result.todo.comments || [],
-        status: result.todo.status as Todo['status'],
-        priority: result.todo.priority as Todo['priority'],
+        status: (result.todo.status || 'todo') as Todo['status'],
+        priority: (result.todo.priority || 'medium') as Todo['priority'],
       };
       
       setTodos((prevTodos) => [createdTodo, ...prevTodos]);
@@ -202,7 +218,7 @@ const Page: React.FC = () => {
       console.error("Kunne ikke oppdatere på serveren:", err);
     }
   };
-
+  
   const handleStatusChange = async (id: string, newStatus: Todo['status']) => {
     const todoToUpdate = todos.find((t) => t.id === id);
     if (!todoToUpdate) return;
@@ -235,7 +251,7 @@ const Page: React.FC = () => {
     const todoToUpdate = todos.find((t) => t.id === id);
     if (!todoToUpdate) return;
 
-    // Spesialhåndtering for priority og status for å sikre riktig type i state
+    // Spesialhåndtering for priority og status
     let typedValue = value;
     if (field === 'priority' && typeof value === 'string') {
         typedValue = value as Todo['priority'];
@@ -264,10 +280,10 @@ const Page: React.FC = () => {
 
   const handleAddComment = (todoId: string) => {
     if (!newComment.trim()) return;
-
+    // Kommentarer lagres kun i frontend for dette eksempelet, da API-et ikke støtter det direkte
     const newCommentObj: Comment = {
       id: Date.now().toString(),
-      author: 'User', // Kan hentes fra en innlogget bruker senere
+      author: 'User',
       text: newComment.trim(),
       timestamp: new Date().toISOString(),
     };
@@ -283,7 +299,6 @@ const Page: React.FC = () => {
       )
     );
     setNewComment('');
-    // Kommentarer lagres ikke til FastAPI i dette eksempelet.
   };
 
   // --- Filtrering og visning ---
@@ -298,22 +313,6 @@ const Page: React.FC = () => {
     { title: 'Done', status: 'done' as const, color: 'var(--success)' },
   ];
   
-  // Hjelpefunksjon for å returnere riktig ikon basert på prioritet
-  const getPriorityIcon = (p: Todo['priority']) => {
-    switch (p) {
-      case 'urgent':
-      case 'high':
-        return <AlertCircle size={16} className="text-danger" />;
-      case 'medium':
-        return <CheckCircle2 size={16} className="text-warning" />;
-      case 'low':
-        return <Circle size={16} className="text-success" />;
-      default:
-        return null;
-    }
-  };
-
-  // Funksjon for å sortere oppgavene (brukes for listevisning)
   const sortedTodos = [...filteredTodos].sort((a, b) => {
     const priorityOrder: { [key: string]: number } = { 'urgent': 4, 'high': 3, 'medium': 2, 'low': 1, 'set priority': 0 };
     return priorityOrder[b.priority] - priorityOrder[a.priority];
@@ -327,9 +326,10 @@ const Page: React.FC = () => {
     { label: 'Completed', value: todos.filter(t => t.completed).length, icon: CheckCircle2, color: 'var(--success)' },
   ];
 
-  // --- Render funksjon ---
+  // --- Render funksjon (Original struktur gjenopprettet) ---
 
   const renderTodoCard = (todo: Todo) => (
+    // MERK: Syntaksfeil fra tidligere rettet her: `todo-title-input ${todo.completed ? 'completed-text' : ''}`
     <div key={todo.id} className={`todo-card ${todo.completed ? 'completed' : ''} priority-${todo.priority}`}>
       <div className="card-header">
         <button className="toggle-btn" onClick={() => handleToggle(todo.id)}>
@@ -338,7 +338,7 @@ const Page: React.FC = () => {
         <input
           type="text"
           value={todo.title}
-          className={`todo-title-input ${todo.completed ? 'completed-text' : ''}`} // KORRIGERT FEIL HER
+          className={`todo-title-input ${todo.completed ? 'completed-text' : ''}`} 
           onChange={(e) => handleSave(todo.id, 'title', e.target.value)}
           onBlur={(e) => handleSave(todo.id, 'title', e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
@@ -416,7 +416,7 @@ const Page: React.FC = () => {
               type="text"
               placeholder="Add a comment..."
               className="comment-input"
-              value={newComment} // Kontrollert input for å fange kommentar
+              value={newComment} // Må bruke kontrollert input
               onChange={(e) => setNewComment(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -434,7 +434,7 @@ const Page: React.FC = () => {
     </div>
   );
 
-  // --- JSX Rendering ---
+  // --- JSX Rendering (Original struktur gjenopprettet) ---
 
   return (
     <div className="app-container">
