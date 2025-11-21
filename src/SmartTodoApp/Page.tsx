@@ -1,12 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import {
   Trash2, Plus, CheckCircle2, Circle, AlertCircle, Calendar,
-  Clock, Users, Settings, Filter
+  Clock, Users, Settings
 } from 'lucide-react';
 import './Page.css';
 
-// Sett API URL - endre dette til din Coolify URL i produksjon
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+interface Todo {
+  id: string;
+  title: string;
+  description: string;
+  completed: boolean;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  createdAt: string;
+  dueDate?: string;
+  assignee?: string;
+  category?: string;
+  tags?: string[];
+  attachments?: string[];
+  comments?: Comment[];
+  estimatedHours?: number;
+  actualHours?: number;
+  status: 'todo' | 'in-progress' | 'review' | 'done';
+  subtasks?: Subtask[];
+}
 
 interface Comment {
   id: string;
@@ -21,30 +37,11 @@ interface Subtask {
   completed: boolean;
 }
 
-interface Todo {
-  id: string;
-  title: string;
-  description: string;
-  completed: boolean;
-  priority: 'set priority' | 'low' | 'medium' | 'high' | 'urgent';
-  createdAt: string;
-  dueDate?: string;
-  assignee?: string;
-  category?: string;
-  tags?: string[];
-  attachments?: string[];
-  comments?: Comment[];
-  estimatedHours?: number;
-  actualHours?: number;
-  status: 'todo' | 'in-progress' | 'review' | 'done';
-  subtasks?: Subtask[];
-}
-
 const Page: React.FC = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [input, setInput] = useState('');
   const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<'set priority' | 'low' | 'medium' | 'high' | 'urgent'>('medium');
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('low');
   const [dueDate, setDueDate] = useState('');
   const [assignee, setAssignee] = useState('');
   const [category, setCategory] = useState('');
@@ -63,51 +60,40 @@ const Page: React.FC = () => {
     onAssign: true,
     onComment: true,
   });
+  const [newComment, setNewComment] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'kanban'>('grid');
-  const [loading, setLoading] = useState(false);
 
-  // Hent todos fra API ved oppstart
   useEffect(() => {
-    fetchTodos();
+    const stored = localStorage.getItem('smartTodos');
     const webhook = localStorage.getItem('n8nWebhook');
     const events = localStorage.getItem('n8nEvents');
     
+    if (stored) {
+      try {
+        setTodos(JSON.parse(stored));
+      } catch {}
+    }
     if (webhook) setN8nWebhookUrl(webhook);
     if (events) setN8nEvents(JSON.parse(events));
   }, []);
 
-  // Lagre n8n innstillinger
+  useEffect(() => {
+    localStorage.setItem('smartTodos', JSON.stringify(todos));
+  }, [todos]);
+
   useEffect(() => {
     localStorage.setItem('n8nWebhook', n8nWebhookUrl);
     localStorage.setItem('n8nEvents', JSON.stringify(n8nEvents));
   }, [n8nWebhookUrl, n8nEvents]);
 
-  const fetchTodos = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${API_URL}/api/todos`);
-      const data = await response.json();
-      setTodos(data.todos);
-    } catch (err) {
-      console.error('Failed to fetch todos:', err);
-      setError('Kunne ikke laste todos fra serveren');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const sendToN8N = async (event: string, data: any) => {
     if (!n8nWebhookUrl) return;
-
-    const eventEnabled = n8nEvents[event as keyof typeof n8nEvents];
-    if (!eventEnabled) return;
+    if (!n8nEvents[event as keyof typeof n8nEvents]) return;
 
     try {
       await fetch(n8nWebhookUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           event,
           data,
@@ -115,9 +101,7 @@ const Page: React.FC = () => {
           source: 'smart-todo-list',
         }),
       });
-    } catch (err) {
-      console.error('Failed to send to n8n:', err);
-    }
+    } catch {}
   };
 
   const handleAddTodo = async () => {
@@ -126,123 +110,82 @@ const Page: React.FC = () => {
       return;
     }
 
-    try {
-      const newTodo = {
-        title: input,
-        description,
-        completed: false,
-        priority,
-        status,
-        dueDate: dueDate || undefined,
-        assignee: assignee || undefined,
-        category: category || undefined,
-        estimatedHours: estimatedHours ? Number(estimatedHours) : undefined,
-      };
+    const newTodo: Todo = {
+      id: Date.now().toString(),
+      title: input,
+      description,
+      completed: false,
+      priority,
+      status,
+      createdAt: new Date().toISOString(),
+      dueDate: dueDate || undefined,
+      assignee: assignee || undefined,
+      category: category || undefined,
+      estimatedHours: estimatedHours ? Number(estimatedHours) : undefined,
+      subtasks: [],
+      comments: [],
+      tags: [],
+    };
 
-      const response = await fetch(`${API_URL}/api/todos`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newTodo),
-      });
+    setTodos([newTodo, ...todos]);
+    await sendToN8N('onCreate', newTodo);
 
-      const data = await response.json();
-      
-      if (response.ok) {
-        await fetchTodos();
-        await sendToN8N('onCreate', data.todo);
-        
-        // Reset form
-        setInput('');
-        setDescription('');
-        setPriority('medium');
-        setDueDate('');
-        setAssignee('');
-        setCategory('');
-        setEstimatedHours('');
-        setStatus('todo');
-        setError(null);
-      } else {
-        setError('Kunne ikke opprette todo');
-      }
-    } catch (err) {
-      console.error('Failed to add todo:', err);
-      setError('Kunne ikke opprette todo');
-    }
+    setInput('');
+    setDescription('');
+    setPriority('low');
+    setDueDate('');
+    setAssignee('');
+    setCategory('');
+    setEstimatedHours('');
+    setStatus('todo');
+    setError(null);
   };
 
   const handleToggle = async (id: string) => {
-    try {
-      const response = await fetch(`${API_URL}/api/todos/${id}/toggle`, {
-        method: 'PATCH',
-      });
-
-      if (response.ok) {
-        await fetchTodos();
-        const todo = todos.find(t => t.id === id);
-        await sendToN8N('onUpdate', todo);
-      }
-    } catch (err) {
-      console.error('Failed to toggle todo:', err);
-    }
+    const updated = todos.map((todo) =>
+      todo.id === id ? { ...todo, completed: !todo.completed } : todo
+    );
+    setTodos(updated);
+    await sendToN8N('onUpdate', updated.find((t) => t.id === id)!);
   };
 
   const handleStatusChange = async (id: string, newStatus: Todo['status']) => {
-    try {
-      const response = await fetch(`${API_URL}/api/todos/${id}/status?status=${newStatus}`, {
-        method: 'PATCH',
-      });
-
-      if (response.ok) {
-        await fetchTodos();
-        const todo = todos.find(t => t.id === id);
-        await sendToN8N('onStatusChange', { id, status: newStatus, todo });
-      }
-    } catch (err) {
-      console.error('Failed to update status:', err);
-    }
+    const updated = todos.map((todo) =>
+      todo.id === id ? { ...todo, status: newStatus } : todo
+    );
+    setTodos(updated);
+    await sendToN8N('onStatusChange', { id, status: newStatus });
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      const todo = todos.find(t => t.id === id);
-      const response = await fetch(`${API_URL}/api/todos/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        await fetchTodos();
-        await sendToN8N('onDelete', { id, deletedTodo: todo });
-      }
-    } catch (err) {
-      console.error('Failed to delete todo:', err);
-    }
+    const todo = todos.find((t) => t.id === id)!;
+    setTodos(todos.filter((t) => t.id !== id));
+    await sendToN8N('onDelete', todo);
   };
 
-  const handleAddComment = async (todoId: string, commentText: string) => {
-    if (!commentText.trim()) return;
+  const handleAddComment = async (todoId: string) => {
+    if (!newComment.trim()) return;
 
-    try {
-      const response = await fetch(`${API_URL}/api/todos/${todoId}/comments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          author: 'You',
-          text: commentText,
-        }),
-      });
+    const updated = todos.map((todo) =>
+      todo.id === todoId
+        ? {
+            ...todo,
+            comments: [
+              ...(todo.comments || []),
+              {
+                id: Date.now().toString(),
+                author: 'You',
+                text: newComment,
+                timestamp: new Date().toISOString(),
+              },
+            ],
+          }
+        : todo
+    );
 
-      if (response.ok) {
-        await fetchTodos();
-        const todo = todos.find(t => t.id === todoId);
-        await sendToN8N('onComment', { id: todoId, comment: commentText, todo });
-      }
-    } catch (err) {
-      console.error('Failed to add comment:', err);
-    }
+    setTodos(updated);
+    await sendToN8N('onComment', updated.find((t) => t.id === todoId)!);
+    setNewComment('');
   };
 
   const filteredTodos = todos
@@ -259,7 +202,6 @@ const Page: React.FC = () => {
   const stats = {
     total: todos.length,
     completed: todos.filter((t) => t.completed).length,
-    active: todos.filter((t) => !t.completed).length,
     inProgress: todos.filter((t) => t.status === 'in-progress').length,
     highpriority: todos.filter((t) => t.priority === 'high' || t.priority === 'urgent').length,
   };
@@ -277,130 +219,100 @@ const Page: React.FC = () => {
         <div className="header-content">
           <div className="header-left">
             <h1 className="app-title">Smart Todo Manager</h1>
-            <p className="app-subtitle">Advanced Task Management with FastAPI & n8n</p>
+            <p className="app-subtitle">Advanced Task Management with n8n Integration</p>
           </div>
-          <div className="header-right">
-            <button
-              onClick={() => setShowN8nSettings(!showN8nSettings)}
-              className="btn-settings"
-              title="n8n Settings"
-            >
-              <Settings size={24} />
-            </button>
-          </div>
+
+          <button 
+            onClick={() => setShowN8nSettings(!showN8nSettings)} 
+            className="btn-settings"
+          >
+            <Settings size={24} />
+          </button>
         </div>
 
         {showN8nSettings && (
           <div className="n8n-settings-panel">
-            <div className="settings-content">
-              <h3>n8n Webhook Configuration</h3>
-              <input
-                type="text"
-                value={n8nWebhookUrl}
-                onChange={(e) => setN8nWebhookUrl(e.target.value)}
-                placeholder="Enter your n8n webhook URL..."
-                className="webhook-input"
-              />
-              
-              <div className="event-toggles">
-                <h4>Enable Event Triggers:</h4>
-                {Object.entries(n8nEvents).map(([key, value]) => (
-                  <label key={key}>
-                    <input
-                      type="checkbox"
-                      checked={value}
-                      onChange={(e) => setN8nEvents({ ...n8nEvents, [key]: e.target.checked })}
-                    />
-                    {key.replace(/([A-Z])/g, ' $1').trim()}
-                  </label>
-                ))}
-              </div>
-            </div>
+            <h3>Webhook URL</h3>
+            <input
+              value={n8nWebhookUrl}
+              onChange={(e) => setN8nWebhookUrl(e.target.value)}
+              className="webhook-input"
+              placeholder="Enter webhook..."
+            />
           </div>
         )}
       </header>
 
       <main className="app-main">
+        
         <div className="stats-container">
-          <div className="stat-item total">
-            <div className="stat-header">
-              <span className="stat-icon">📊</span>
-              <div className="stat-details">
-                <span className="stat-label">Total</span>
-                <span className="stat-number">{stats.total}</span>
-              </div>
+          <div className="stat-item">
+            <span className="stat-icon">📊</span>
+            <div className="stat-details">
+              <span className="stat-label">Total</span>
+              <span className="stat-number">{stats.total}</span>
             </div>
           </div>
-          <div className="stat-item completed">
-            <div className="stat-header">
-              <span className="stat-icon">✅</span>
-              <div className="stat-details">
-                <span className="stat-label">Completed</span>
-                <span className="stat-number">{stats.completed}</span>
-              </div>
+
+          <div className="stat-item">
+            <span className="stat-icon">✅</span>
+            <div className="stat-details">
+              <span className="stat-label">Completed</span>
+              <span className="stat-number">{stats.completed}</span>
             </div>
           </div>
-          <div className="stat-item active">
-            <div className="stat-header">
-              <span className="stat-icon">⚡</span>
-              <div className="stat-details">
-                <span className="stat-label">In Progress</span>
-                <span className="stat-number">{stats.inProgress}</span>
-              </div>
+
+          <div className="stat-item">
+            <span className="stat-icon">⚡</span>
+            <div className="stat-details">
+              <span className="stat-label">In Progress</span>
+              <span className="stat-number">{stats.inProgress}</span>
             </div>
           </div>
-          <div className="stat-item urgent">
-            <div className="stat-header">
-              <span className="stat-icon">🔥</span>
-              <div className="stat-details">
-                <span className="stat-label">High Priority</span>
-                <span className="stat-number">{stats.highpriority}</span>
-              </div>
+
+          <div className="stat-item">
+            <span className="stat-icon">🔥</span>
+            <div className="stat-details">
+              <span className="stat-label">High Priority</span>
+              <span className="stat-number">{stats.highpriority}</span>
             </div>
           </div>
         </div>
 
         <div className="layout-wrapper">
+          
+          {/* LEFT SIDE */}
           <aside className="sidebar">
-            <div className="sidebar-section">
-              <h3>Status</h3>
-              {Object.entries(statusCounts).map(([status, count]) => (
-                <div key={status} className="sidebar-item">
-                  <span>{status.replace('-', ' ')}</span>
-                  <span className="badge">{count}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="sidebar-section">
-              <h3>View Mode</h3>
-              <div className="view-buttons">
-                <button
-                  className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
-                  onClick={() => setViewMode('list')}
-                  title="List View"
-                >
-                  📋
-                </button>
-                <button
-                  className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
-                  onClick={() => setViewMode('grid')}
-                  title="Grid View"
-                >
-                  📦
-                </button>
-                <button
-                  className={`view-btn ${viewMode === 'kanban' ? 'active' : ''}`}
-                  onClick={() => setViewMode('kanban')}
-                  title="Kanban View"
-                >
-                  📊
-                </button>
+            <h3>Status</h3>
+            {Object.entries(statusCounts).map(([status, count]) => (
+              <div key={status} className="sidebar-item">
+                <span>{status}</span>
+                <span className="badge">{count}</span>
               </div>
+            ))}
+
+            <h3>View Mode</h3>
+            <div className="view-buttons">
+              <button 
+                className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
+                onClick={() => setViewMode('list')}
+              >📋</button>
+
+              <button 
+                className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                onClick={() => setViewMode('grid')}
+              >📦</button>
+
+              <button 
+                className={`view-btn ${viewMode === 'kanban' ? 'active' : ''}`}
+                onClick={() => setViewMode('kanban')}
+              >📊</button>
             </div>
           </aside>
 
-          <div className="main-content">
+          {/* RIGHT SIDE */}
+          <div className="main-panel">
+
             {error && (
               <div className="error-banner">
                 <AlertCircle size={20} />
@@ -410,128 +322,53 @@ const Page: React.FC = () => {
 
             <div className="form-card">
               <h2>New Task</h2>
-              <div className="form-column-1">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddTodo()}
-                  placeholder="Task title..."
-                  className="form-input-large"
-                />
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Task description..."
-                  className="form-textarea"
-                  rows={4}
-                />
-              </div>
+              <input 
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                className="form-input-large"
+                placeholder="Task title..."
+              />
 
-              <div className="form-column-2">
-                <div className="form-group">
-                  <label>Priority</label>
-                  <select value={priority} onChange={(e) => setPriority(e.target.value as any)} className="form-select">
-                    <option value="low">🟢 Low</option>
-                    <option value="medium">🟡 Medium</option>
-                    <option value="high">🔴 High</option>
-                    <option value="urgent">🚨 Urgent</option>
-                  </select>
-                </div>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="form-textarea"
+                placeholder="Description..."
+              />
 
-                <div className="form-group">
-                  <label>Status</label>
-                  <select value={status} onChange={(e) => setStatus(e.target.value as any)} className="form-select">
-                    <option value="todo">To Do</option>
-                    <option value="in-progress">In Progress</option>
-                    <option value="review">Review</option>
-                    <option value="done">Done</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Due Date</label>
-                  <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="form-input" />
-                </div>
-
-                <div className="form-group">
-                  <label>Assignee</label>
-                  <input type="text" value={assignee} onChange={(e) => setAssignee(e.target.value)} placeholder="Name..." className="form-input" />
-                </div>
-
-                <div className="form-group">
-                  <label>Category</label>
-                  <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category..." className="form-input" />
-                </div>
-
-                <div className="form-group">
-                  <label>Est. Hours</label>
-                  <input type="number" value={estimatedHours} onChange={(e) => setEstimatedHours(e.target.value)} placeholder="Hours..." className="form-input" />
-                </div>
-              </div>
-
-              <button onClick={handleAddTodo} className="btn-primary" disabled={loading}>
-                <Plus size={20} />
-                {loading ? 'Creating...' : 'Create Task'}
+              <button className="btn-primary" onClick={handleAddTodo}>
+                <Plus /> Create Task
               </button>
             </div>
 
-            <div className="controls-section">
-              <div className="search-box">
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="🔍 Search tasks..."
-                  className="search-input"
-                />
-              </div>
-
-              <div className="filter-controls">
-                {(['all', 'active', 'completed'] as const).map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setFilter(f)}
-                    className={`filter-btn ${filter === f ? 'active' : ''}`}
-                  >
-                    {f.charAt(0).toUpperCase() + f.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div className={`todos-container ${viewMode}`}>
-              {loading ? (
+              {filteredTodos.length === 0 ? (
                 <div className="empty-state">
-                  <div className="empty-icon">⏳</div>
-                  <p>Loading todos...</p>
-                </div>
-              ) : filteredTodos.length === 0 ? (
-                <div className="empty-state">
-                  <div className="empty-icon">🔭</div>
-                  <p>No tasks found</p>
+                  <div className="empty-icon">📭</div>
+                  <p>No tasks yet</p>
                 </div>
               ) : (
                 filteredTodos.map((todo) => (
                   <div key={todo.id} className={`todo-card ${todo.status}`}>
+
                     <div className="todo-header">
-                      <button
+                      <button 
                         onClick={() => handleToggle(todo.id)}
                         className="checkbox-btn"
                       >
                         {todo.completed ? (
-                          <CheckCircle2 size={24} className="checked" />
+                          <CheckCircle2 className="checked" size={24} />
                         ) : (
                           <Circle size={24} />
                         )}
                       </button>
-                      <div className="todo-title-section">
-                        <h3 className={`todo-title ${todo.completed ? 'completed' : ''}`}>
-                          {todo.title}
-                        </h3>
-                        {todo.category && <span className="category-badge">{todo.category}</span>}
-                      </div>
-                      <button onClick={() => handleDelete(todo.id)} className="btn-delete-small">
+
+                      <h3 className="todo-title">{todo.title}</h3>
+
+                      <button 
+                        onClick={() => handleDelete(todo.id)}
+                        className="btn-delete-small"
+                      >
                         <Trash2 size={18} />
                       </button>
                     </div>
@@ -540,74 +377,36 @@ const Page: React.FC = () => {
                       <p className="todo-description">{todo.description}</p>
                     )}
 
-                    <div className="todo-meta">
-                      <div className="meta-item">
-                        <span className={`priority-badge ${todo.priority}`}>{todo.priority}</span>
-                      </div>
-                      {todo.dueDate && (
-                        <div className="meta-item">
-                          <Calendar size={14} />
-                          <span>{new Date(todo.dueDate).toLocaleDateString()}</span>
-                        </div>
-                      )}
-                      {todo.assignee && (
-                        <div className="meta-item">
-                          <Users size={14} />
-                          <span>{todo.assignee}</span>
-                        </div>
-                      )}
-                      {todo.estimatedHours && (
-                        <div className="meta-item">
-                          <Clock size={14} />
-                          <span>{todo.estimatedHours}h</span>
-                        </div>
-                      )}
-                    </div>
+                    <select
+                      className="status-select"
+                      value={todo.status}
+                      onChange={(e) => handleStatusChange(todo.id, e.target.value as any)}
+                    >
+                      <option value="todo">To Do</option>
+                      <option value="in-progress">In Progress</option>
+                      <option value="review">Review</option>
+                      <option value="done">Done</option>
+                    </select>
 
-                    <div className="todo-status-selector">
-                      <select
-                        value={todo.status}
-                        onChange={(e) => handleStatusChange(todo.id, e.target.value as any)}
-                        className="status-select"
-                      >
-                        <option value="todo">To Do</option>
-                        <option value="in-progress">In Progress</option>
-                        <option value="review">Review</option>
-                        <option value="done">Done</option>
-                      </select>
-                    </div>
-
-                    <div className="todo-comments">
-                      {(todo.comments || []).length > 0 && (
-                        <div className="comments-list">
-                          {todo.comments.map((comment) => (
-                            <div key={comment.id} className="comment">
-                              <strong>{comment.author}:</strong> {comment.text}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <div className="add-comment">
-                        <input
-                          type="text"
-                          placeholder="Add a comment..."
-                          className="comment-input"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              const inputElement = e.target as HTMLInputElement;
-                              handleAddComment(todo.id, inputElement.value);
-                              inputElement.value = '';
-                            }
-                          }}
-                        />
-                      </div>
-                    </div>
+                    <input
+                      className="comment-input"
+                      placeholder="Add comment..."
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          setNewComment((e.target as any).value);
+                          handleAddComment(todo.id);
+                          (e.target as any).value = '';
+                        }
+                      }}
+                    />
                   </div>
                 ))
               )}
             </div>
+
           </div>
         </div>
+        
       </main>
     </div>
   );
