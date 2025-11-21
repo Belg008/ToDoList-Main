@@ -8,6 +8,7 @@ import './Page.css';
 
 // URL-en til din backend
 const API_BASE_URL = 'http://localhost:8000'; // Eller URL-en du bruker for FastAPI
+const N8N_WEBHOOK_URL = 'http://localhost:5678/webhook-test/your-n8n-webhook-id'; // Erstatt med din faktiske n8n webhook URL
 
 // --- Interfaces (Datamodeller) ---
 
