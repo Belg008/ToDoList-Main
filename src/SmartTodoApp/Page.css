@@ -586,4 +586,11 @@ body {
   .todos-container.kanban {
     grid-template-columns: 1fr;
   }
+
+  .main-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
 }
