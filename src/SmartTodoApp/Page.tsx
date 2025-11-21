@@ -663,22 +663,25 @@ const Page: React.FC = () => {
                           ))}
                         </div>
                       )}
+                      // ... (kode over)
+
                       <div className="add-comment">
                         <input
                           type="text"
                           placeholder="Add a comment..."
                           className="comment-input"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
+                          onKeyDown={(e) => { 
+                            if (e.key === 'Enter') { 
                               setNewComment((e.target as any).value);
                               handleAddComment(todo.id);
                               (e.target as any).value = '';
-                          }}
-                        />
+                            } 
+                          }} 
+                        /> 
                       </div>
                     </div>
                   </div>
-                ))
+                )) 
               )}
             </div>
           </div>
