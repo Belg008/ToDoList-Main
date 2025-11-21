@@ -231,4 +231,11 @@ h1.section-title {
     border-right: none;
     border-bottom: 1px solid var(--sidebar-border);
   }
+
+   /* Completed todo style */
+.todo-card.completed {
+  opacity: 0.6;
+  background: #f0f0f3;
+  text-decoration: line-through;
+}
 }
