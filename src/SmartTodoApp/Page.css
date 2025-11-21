@@ -1,424 +1,234 @@
-/* Page.designC.css — Apple / Design C (Option 2) */
+/* -----------------------------------------------------------
+   macOS Sonoma – System Settings Style
+   Clean, frosted sidebar + large white content panel
+   Apple SF aesthetic, subtle lines, soft focus rings
+----------------------------------------------------------- */
 
-/* --- Variables --- */
-:root{
-  --bg:#f6f7f8;
-  --card:#ffffff;
-  --muted:#8e9499;
-  --accent:#007aff; /* Apple blue */
-  --accent-600:#005ecb;
-  --glass: rgba(255,255,255,0.6);
-  --shadow: 0 8px 24px rgba(17,24,39,0.08);
+/* --- Root variables --- */
+:root {
+  --bg: #f5f5f7;
+  --sidebar-glass: rgba(255, 255, 255, 0.55);
+  --sidebar-border: rgba(0, 0, 0, 0.07);
+  --panel-bg: #ffffff;
+  --panel-border: rgba(0, 0, 0, 0.06);
+  --shadow: 0 10px 30px rgba(0,0,0,0.06);
+  --accent: #007aff; /* Apple blue */
   --radius: 14px;
-  --radius-sm: 8px;
-  --radius-pill: 999px;
-  --glass-blur: 12px;
-  --success:#32d74b;
-  --danger:#ff3b30;
-  --warning:#ffcc00;
-  font-synthesis: none;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Roboto;
 }
 
-/* --- Reset --- */
-*{box-sizing:border-box;margin:0;padding:0}
-html,body,#root{height:100%}
-body{
-  font-family: -apple-system, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial;
-  background: linear-gradient(180deg, #f2f5f8 0%, #eef2f6 100%);
-  color:#0b1220;
-  -webkit-font-smoothing:antialiased;
-  -moz-osx-font-smoothing:grayscale;
-  line-height:1.45;
-  padding: 32px;
-}
-
-/* Prevent any accidental overlays blocking inputs */
-.app-container, .app-container * { pointer-events: auto; }
-
-/* --- App Shell --- */
-.app-container{
-  max-width:1200px;
-  margin:0 auto;
-  display:flex;
-  flex-direction:column;
-  gap:20px;
-}
-
-/* Header */
-.app-header{
-  background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.85));
-  backdrop-filter: blur(var(--glass-blur));
-  border-radius: calc(var(--radius) + 4px);
-  padding:18px 22px;
-  box-shadow: var(--shadow);
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  align-self:stretch;
-  border: 1px solid rgba(15,23,42,0.04);
-}
-
-.header-left .app-title{
-  font-size:20px;
-  font-weight:700;
-  letter-spacing:-0.2px;
-  margin-bottom:4px;
-}
-
-.header-left .app-subtitle{
-  font-size:13px;
-  color:var(--muted);
-}
-
-/* Settings button */
-.btn-settings{
-  background: transparent;
-  border: 1px solid rgba(15,23,42,0.06);
-  padding:8px;
-  border-radius:10px;
-  cursor:pointer;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-}
-.btn-settings:hover{
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(3,10,27,0.06);
-  border-color: rgba(0,122,255,0.16);
-  color: var(--accent);
-}
-
-/* n8n panel */
-.n8n-settings-panel{
-  margin-top:12px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.85));
-  border-radius:12px;
-  padding:16px;
-  border:1px solid rgba(15,23,42,0.04);
-  box-shadow: 0 10px 30px rgba(2,6,23,0.04);
-}
-
-/* --- Layout --- */
-.app-main{
-  display:grid;
-  grid-template-columns: 300px 1fr;
-  gap:20px;
-  align-items:start;
-}
-
-/* Sidebar (left) */
-.sidebar{
-  background: var(--card);
-  border-radius: var(--radius);
-  padding:18px;
-  box-shadow: var(--shadow);
-  border: 1px solid rgba(15,23,42,0.04);
-  position:sticky;
-  top:32px;
-  height: fit-content;
-}
-
-.sidebar-section h3{
-  font-size:13px;
-  margin-bottom:12px;
-  color:#111827;
-  font-weight:700;
-}
-
-/* Sidebar items */
-.sidebar-item{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:10px 12px;
-  border-radius:10px;
-  cursor:pointer;
-  transition: background .18s, transform .12s;
-  color:#111827;
-}
-.sidebar-item:hover{
-  background: rgba(2,6,23,0.03);
-  transform: translateY(-2px);
-}
-.badge{
-  background: rgba(0,122,255,0.12);
-  color:var(--accent-600);
-  padding:6px 10px;
-  border-radius:999px;
-  font-weight:700;
-  font-size:13px;
-}
-
-/* view buttons */
-.view-buttons{display:flex; gap:8px;}
-.view-btn{
-  background: rgba(15,23,42,0.02);
-  border: 1px solid rgba(15,23,42,0.03);
-  padding:10px;
-  border-radius:12px;
-  cursor:pointer;
-  min-width:44px;
-  min-height:44px;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  font-size:16px;
-}
-.view-btn.active{
-  background: linear-gradient(180deg, var(--accent), var(--accent-600));
-  color:#fff;
-  box-shadow: 0 8px 20px rgba(0,122,255,0.18);
-  transform: scale(1.02);
-}
-
-/* Main right column */
-.form-card{
-  background: transparent;
-  border-radius: var(--radius);
+/* --- Base / reset --- */
+body {
+  background: var(--bg);
+  margin: 0;
   padding: 0;
-  box-shadow: none;
+  color: #111;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Real card wrapper */
-.form-card > .card-inner{
-  background: var(--card);
+/* PAGE LAYOUT ------------------------------------------------ */
+
+.macos-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  height: 100vh;
+}
+
+/* SIDEBAR ---------------------------------------------------- */
+
+.macos-sidebar {
+  backdrop-filter: blur(22px);
+  background: var(--sidebar-glass);
+  border-right: 1px solid var(--sidebar-border);
+  padding: 26px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.sidebar-title {
+  font-size: 19px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebar-item {
+  padding: 10px 12px;
+  font-size: 15px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  transition: background .15s, transform .12s;
+}
+
+.sidebar-item:hover {
+  background: rgba(0,0,0,0.04);
+  transform: translateY(-2px);
+}
+
+.sidebar-item.active {
+  background: rgba(0,122,255,0.15);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* CONTENT PANEL --------------------------------------------- */
+
+.macos-content {
+  background: var(--panel-bg);
+  padding: 34px;
+  overflow-y: auto;
+}
+
+.content-card {
+  background: #fff;
+  border: 1px solid var(--panel-border);
   border-radius: var(--radius);
-  padding:18px;
+  padding: 22px;
+  margin-bottom: 26px;
   box-shadow: var(--shadow);
-  border:1px solid rgba(15,23,42,0.04);
 }
 
-/* Heading */
-.form-card h2{
-  font-size:16px;
-  margin-bottom:14px;
-  font-weight:700;
+h1.section-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 16px;
 }
 
-/* Grid layout for form */
-.form-grid{
-  display:grid;
-  grid-template-columns: 1fr 320px;
-  gap:14px;
-  margin-bottom:18px;
+/* INPUTS ----------------------------------------------------- */
+
+.macos-input,
+.macos-select,
+.macos-textarea {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.12);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 15px;
+  outline: none;
+  transition: border-color .18s, box-shadow .18s;
 }
 
-.form-column-1{ display:flex; flex-direction:column; gap:12px; }
-.form-column-2{ display:flex; flex-direction:column; gap:10px; }
-
-/* Inputs & textarea (Apple style) */
-.form-input-large,
-.form-input,
-.form-textarea,
-.form-select,
-.webhook-input,
-.search-input,
-.comment-input{
-  width:100%;
-  background: linear-gradient(180deg, rgba(250,250,251,0.9), rgba(255,255,255,0.95));
-  border: 1px solid rgba(15,23,42,0.06);
-  padding:12px 14px;
-  border-radius:12px;
-  font-size:15px;
-  color:#0b1220;
-  outline:none;
-  transition: box-shadow .15s, border-color .12s, transform .08s;
-  -webkit-appearance: none;
+.macos-input:focus,
+.macos-select:focus,
+.macos-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(0,122,255,0.30);
 }
 
-/* Make placeholder subdued */
-.form-input-large::placeholder,
-.form-textarea::placeholder,
-.form-input::placeholder,
-.form-select::placeholder,
-.webhook-input::placeholder,
-.search-input::placeholder{
-  color: #9aa3ad;
-  font-weight:500;
+.macos-textarea {
+  min-height: 90px;
+  resize: vertical;
 }
 
-/* focus */
-.form-input-large:focus,
-.form-textarea:focus,
-.form-input:focus,
-.form-select:focus,
-.webhook-input:focus,
-.search-input:focus{
-  border-color: rgba(0,122,255,0.8);
-  box-shadow: 0 6px 18px rgba(0,122,255,0.08);
-  transform: translateY(-1px);
+/* BUTTON ----------------------------------------------------- */
+
+.macos-button {
+  background: var(--accent);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, transform .12s;
 }
 
-/* textarea styling */
-.form-textarea{
-  min-height:110px;
-  resize:vertical;
-  line-height:1.5;
-  padding-top:12px;
+.macos-button:hover {
+  background: #0062d6;
+  transform: translateY(-2px);
 }
 
-/* selects */
-.form-select{
-  padding:10px 12px;
-  font-weight:600;
+/* TODO CARDS ------------------------------------------------- */
+
+.todo-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
 }
 
-/* primary button */
-.btn-primary{
-  background: linear-gradient(180deg, var(--accent), var(--accent-600));
-  border:none;
-  color:white;
-  padding:12px 16px;
-  border-radius:12px;
-  font-weight:700;
-  font-size:15px;
-  display:inline-flex;
-  gap:10px;
-  align-items:center;
-  justify-content:center;
-  cursor:pointer;
-  margin-top:6px;
-  box-shadow: 0 10px 30px rgba(0,122,255,0.12);
-}
-.btn-primary:hover{ transform: translateY(-2px); }
-
-/* controls & search */
-.controls-section{
-  margin-top:18px;
-  display:flex;
-  gap:12px;
-  align-items:center;
-  justify-content:space-between;
-}
-.search-box{ flex:1; }
-.filter-controls{ display:flex; gap:8px; flex-shrink:0; }
-.filter-btn{
-  background:transparent;
-  border:1px solid rgba(15,23,42,0.04);
-  padding:10px 14px;
-  border-radius:12px;
-  font-weight:700;
-  cursor:pointer;
-}
-.filter-btn.active{
-  background: rgba(0,122,255,0.12);
-  border-color: rgba(0,122,255,0.18);
-  color: var(--accent-600);
+.todo-card {
+  background: #fff;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.04);
+  transition: transform .12s;
 }
 
-/* Todos container */
-.todos-container{
-  margin-top:20px;
-  display:grid;
-  gap:12px;
+.todo-card:hover {
+  transform: translateY(-4px);
 }
 
-/* Grid/list/kanban modes — keep default nice card sizes */
-.todos-container.grid{ grid-template-columns: repeat(auto-fill,minmax(320px,1fr)); }
-.todos-container.list{ display:flex; flex-direction:column; }
-.todos-container.kanban{ grid-template-columns: repeat(3, 1fr); }
-
-/* Empty state */
-.empty-state{
-  padding:36px;
-  border-radius:12px;
-  background: linear-gradient(180deg, rgba(250,250,251,0.9), rgba(255,255,255,0.95));
-  border:1px dashed rgba(15,23,42,0.04);
-  text-align:center;
-  color:var(--muted);
-  box-shadow: none;
+.todo-title {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 4px;
 }
 
-/* Todo card Apple-ish */
-.todo-card{
-  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(250,250,251,0.98));
-  border-radius:12px;
-  padding:14px;
-  border:1px solid rgba(15,23,42,0.04);
-  box-shadow: 0 6px 20px rgba(2,6,23,0.04);
-  transition: transform .12s, box-shadow .12s, border-color .12s;
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-.todo-card:hover{ transform: translateY(-6px); box-shadow: 0 14px 40px rgba(2,6,23,0.06); border-color: rgba(0,122,255,0.04); }
-
-/* left accent for statuses */
-.todo-card.in-progress{ border-left: 4px solid var(--warning); }
-.todo-card.review{ border-left: 4px solid #bf5af2; }
-.todo-card.done{ border-left: 4px solid var(--success); opacity:0.95; }
-
-/* header row */
-.todo-header{
-  display:flex;
-  align-items:flex-start;
-  gap:12px;
+.todo-description {
+  color: #666;
+  font-size: 14px;
 }
 
-/* checkbox button */
-.checkbox-btn{
-  background: transparent;
-  border:none;
-  cursor:pointer;
-  padding:4px;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  color:var(--muted);
-}
-.checkbox-btn .checked{ color: var(--success); }
+/* STATUS / PRIORITY BADGES ---------------------------------- */
 
-/* title and meta */
-.todo-title{ font-size:15px; font-weight:700; margin:0; color:#061025; }
-.todo-title.completed{ text-decoration:line-through; color:#9aa3ad; font-weight:600; }
-.category-badge{
-  background: rgba(15,23,42,0.04);
-  color:#111827;
-  padding:6px 10px;
-  border-radius:999px;
-  font-weight:700;
-  font-size:12px;
+.badges-row {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-/* delete icon */
-.btn-delete-small{ background:transparent; border:none; cursor:pointer; color:var(--muted); padding:6px; border-radius:8px; }
-.btn-delete-small:hover{ background: rgba(255,59,48,0.06); color: var(--danger); }
-
-/* description & meta */
-.todo-description{ color:var(--muted); font-size:14px; line-height:1.45; margin-top:2px; }
-.todo-meta{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; color:var(--muted); font-size:13px; }
-
-.priority-badge{
-  padding:6px 8px; border-radius:999px; font-weight:800; font-size:12px; text-transform:uppercase;
-  letter-spacing:0.6px;
-}
-.priority-badge.low{ background: rgba(50,215,75,0.08); color:var(--success); }
-.priority-badge.medium{ background: rgba(255,204,0,0.08); color: #b88600; }
-.priority-badge.high{ background: rgba(255,59,48,0.08); color: var(--danger); }
-.priority-badge.urgent{ background: rgba(255,59,48,0.12); color: var(--danger); box-shadow: 0 6px 18px rgba(255,59,48,0.06); }
-
-/* status select */
-.status-select{
-  width:100%;
-  border-radius:10px;
-  padding:10px 12px;
-  border:1px solid rgba(15,23,42,0.04);
-  background: linear-gradient(180deg, rgba(250,250,251,0.9), rgba(255,255,255,0.98));
-  font-weight:700;
-  cursor:pointer;
+.badge {
+  padding: 5px 10px;
+  border-radius: 30px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
-/* comments */
-.todo-comments{ border-top:1px solid rgba(15,23,42,0.03); padding-top:10px; display:flex; flex-direction:column; gap:8px; }
-.comment{ background: rgba(15,23,42,0.03); padding:8px 10px; border-radius:8px; font-size:13px; color:#111827; }
-.add-comment{ display:flex; gap:8px; align-items:center; }
+.badge-high { background: #ffebe9; color: #d40000; }
+.badge-medium { background: #fff6d6; color: #b88600; }
+.badge-low { background: #e8ffe8; color: #329400; }
 
-/* small screens */
-@media (max-width:1000px){
-  .app-main{ grid-template-columns: 1fr; }
-  .form-grid{ grid-template-columns: 1fr; }
-  body{ padding:18px; }
+/* COMMENTS --------------------------------------------------- */
+
+.comment-box {
+  margin-top: 14px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f5f5f7;
+  font-size: 14px;
 }
 
-/* Accessibility helpers */
-[role="button"], button { -webkit-tap-highlight-color: rgba(0,0,0,0); }
+.comment-input-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.comment-input {
+  flex: 1;
+}
+
+/* RESPONSIVE ------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .macos-layout {
+    grid-template-columns: 1fr;
+  }
+  .macos-sidebar {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--sidebar-border);
+  }
+}
