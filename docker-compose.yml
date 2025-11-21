@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  # Frontend-tjenesten (Nettsiden)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "80:5173" # Mapper serverens port 80 (vanlig web) til containerens 5173
+    depends_on:
+      - backend
+
+  # Backend-tjenesten (API-et)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8000:8000" # Mapper serverens port 8000 til API-et
