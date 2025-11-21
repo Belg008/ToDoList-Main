@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import "./Page.macos.css";
 
+const API_BASE_URL = '192.168.40.101:8000'
 type Todo = {
   id: number;
   title: string;
