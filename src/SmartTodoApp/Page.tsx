@@ -1,17 +1,40 @@
-import React from "react";
-import "./Page.macos.css"; // bytt CSS-import
+import React, { useState } from "react";
+import "./Page.macos.css";
+
+type Todo = {
+  id: number;
+  title: string;
+  description: string;
+  priority: "low" | "medium" | "high";
+};
 
 export default function Page() {
-  // resten av logikken din beholdes identisk  
-  // jeg viser kun strukturen som skal endres:
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState<"low" | "medium" | "high">("low");
+  const [todos, setTodos] = useState<Todo[]>([]);
+
+  const addTodo = () => {
+    if (!title.trim()) return; // ikke legg til tomme titler
+
+    const newTodo: Todo = {
+      id: Date.now(),
+      title,
+      description,
+      priority,
+    };
+
+    setTodos([...todos, newTodo]);
+    setTitle("");
+    setDescription("");
+    setPriority("low");
+  };
 
   return (
     <div className="macos-layout">
-
       {/* SIDEBAR */}
       <aside className="macos-sidebar">
         <div className="sidebar-title">SmartTodo</div>
-
         <div className="sidebar-section">
           <div className="sidebar-item active">All Tasks</div>
           <div className="sidebar-item">In Progress</div>
@@ -21,7 +44,6 @@ export default function Page() {
 
       {/* MAIN CONTENT */}
       <main className="macos-content">
-
         {/* FORM PANEL */}
         <div className="content-card">
           <h1 className="section-title">Create new task</h1>
@@ -43,7 +65,7 @@ export default function Page() {
           <select
             className="macos-select"
             value={priority}
-            onChange={(e) => setPriority(e.target.value)}
+            onChange={(e) => setPriority(e.target.value as "low" | "medium" | "high")}
           >
             <option value="low">Low</option>
             <option value="medium">Medium</option>
@@ -64,9 +86,8 @@ export default function Page() {
               <div key={todo.id} className="todo-card">
                 <div className="todo-title">{todo.title}</div>
                 <div className="todo-description">{todo.description}</div>
-
                 <div className="badges-row">
-                  <span className="badge badge-high">
+                  <span className={`badge badge-${todo.priority}`}>
                     {todo.priority.toUpperCase()}
                   </span>
                 </div>
@@ -74,7 +95,6 @@ export default function Page() {
             ))}
           </div>
         </div>
-
       </main>
     </div>
   );
