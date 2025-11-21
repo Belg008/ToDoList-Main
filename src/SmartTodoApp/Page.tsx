@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./Page.macos.css";
 
 type Todo = {
@@ -6,6 +6,7 @@ type Todo = {
   title: string;
   description: string;
   priority: "low" | "medium" | "high";
+  completed: boolean;
 };
 
 export default function Page() {
@@ -14,20 +15,40 @@ export default function Page() {
   const [priority, setPriority] = useState<"low" | "medium" | "high">("low");
   const [todos, setTodos] = useState<Todo[]>([]);
 
+  // --- Load todos from localStorage on mount ---
+  useEffect(() => {
+    const saved = localStorage.getItem("todos");
+    if (saved) setTodos(JSON.parse(saved));
+  }, []);
+
+  // --- Save todos to localStorage whenever they change ---
+  useEffect(() => {
+    localStorage.setItem("todos", JSON.stringify(todos));
+  }, [todos]);
+
   const addTodo = () => {
-    if (!title.trim()) return; // ikke legg til tomme titler
+    if (!title.trim()) return;
 
     const newTodo: Todo = {
       id: Date.now(),
       title,
       description,
       priority,
+      completed: false,
     };
 
     setTodos([...todos, newTodo]);
     setTitle("");
     setDescription("");
     setPriority("low");
+  };
+
+  const toggleComplete = (id: number) => {
+    setTodos(
+      todos.map((todo) =>
+        todo.id === id ? { ...todo, completed: !todo.completed } : todo
+      )
+    );
   };
 
   return (
@@ -65,7 +86,9 @@ export default function Page() {
           <select
             className="macos-select"
             value={priority}
-            onChange={(e) => setPriority(e.target.value as "low" | "medium" | "high")}
+            onChange={(e) =>
+              setPriority(e.target.value as "low" | "medium" | "high")
+            }
           >
             <option value="low">Low</option>
             <option value="medium">Medium</option>
@@ -83,8 +106,14 @@ export default function Page() {
 
           <div className="todo-list">
             {todos.map((todo) => (
-              <div key={todo.id} className="todo-card">
-                <div className="todo-title">{todo.title}</div>
+              <div
+                key={todo.id}
+                className={`todo-card ${todo.completed ? "completed" : ""}`}
+                onClick={() => toggleComplete(todo.id)}
+              >
+                <div className="todo-title">
+                  {todo.completed && "✅ "} {todo.title}
+                </div>
                 <div className="todo-description">{todo.description}</div>
                 <div className="badges-row">
                   <span className={`badge badge-${todo.priority}`}>
