@@ -1,11 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Trash2, Plus, CheckCircle2, Circle, AlertCircle, Calendar,
   Clock, Users, Save, RefreshCw, Settings, Filter,
   ChevronDown, Edit2, Eye, EyeOff, Send
 } from 'lucide-react';
 import './Page.css';
-import { API_BASE_URL } from '../config';
+
+// URL-en til din backend
+const API_BASE_URL = 'http://localhost:8000'; // Eller URL-en du bruker for FastAPI
+const N8N_WEBHOOK_URL = 'http://localhost:5678/webhook-test/your-n8n-webhook-id'; // Erstatt med din faktiske n8n webhook URL
+
+// --- Interfaces (Datamodeller) ---
+
+interface Comment {
+  id: string;
+  author: string;
+  text: string;
+  timestamp: string;
+}
+
+interface Subtask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
 
 interface Todo {
   id: string;
@@ -26,662 +44,584 @@ interface Todo {
   subtasks?: Subtask[];
 }
 
-interface Comment {
-  id: string;
-  author: string;
-  text: string;
-  timestamp: string;
-}
+// --- Hjelpefunksjon for API-kall ---
 
-interface Subtask {
-  id: string;
-  title: string;
-  completed: boolean;
-}
+const sendToN8N = async (eventName: string, data: any) => {
+  try {
+    await fetch(N8N_WEBHOOK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ event: eventName, data: data }),
+    });
+  } catch (err) {
+    console.warn(`Could not send event ${eventName} to n8n. Check if n8n is running.`, err);
+  }
+};
+
+// --- Hovedkomponent ---
 
 const Page: React.FC = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [input, setInput] = useState('');
   const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState< 'set priority' | 'low' | 'medium' | 'high' | 'urgent'>('set priority');
+  const [priority, setPriority] = useState<'set priority' | 'low' | 'medium' | 'high' | 'urgent'>('set priority');
   const [dueDate, setDueDate] = useState('');
   const [assignee, setAssignee] = useState('');
   const [category, setCategory] = useState('');
-  const [estimatedHours, setEstimatedHours] = useState('');
-  const [status, setStatus] = useState<'todo' | 'in-progress' | 'review' | 'done'>('todo');
-  const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [n8nWebhookUrl, setN8nWebhookUrl] = useState('');
-  const [showN8nSettings, setShowN8nSettings] = useState(false);
-  const [n8nEvents, setN8nEvents] = useState({
-    onCreate: true,
-    onUpdate: true,
-    onDelete: true,
-    onStatusChange: true,
-    onAssign: true,
-    onComment: true,
-  });
-  const [selectedTodo, setSelectedTodo] = useState<string | null>(null);
+  const [newTag, setNewTag] = useState('');
   const [newComment, setNewComment] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'kanban'>('grid');
+  const [view, setView] = useState<'list' | 'kanban'>('list');
+  const [filter, setFilter] = useState<'all' | 'todo' | 'in-progress' | 'review' | 'done'>('all');
+  const [showCompleted, setShowCompleted] = useState(true);
+  const [showAdvancedForm, setShowAdvancedForm] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-// Hent todos fra API når siden lastes
-  useEffect(() => {
-    const fetchTodos = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/todos`);
-        const data = await response.json();
-        // Backend returnerer { "todos": [...] }, så vi henter arrayet derfra
-        // Vi konverterer ID til string fordi frontenden din bruker string
-        const formattedTodos = data.todos.map((t: any) => ({
-          ...t,
-          id: t.id.toString(),
-          // Backend har foreløpig ikke description, dueDate, etc., så vi må håndtere det
-          // hvis du vil bevare data backend ikke støtter ennå.
-        }));
-        setTodos(formattedTodos);
-      } catch (error) {
-        console.error("Klarte ikke hente todos:", error);
-        setError("Kunne ikke koble til serveren");
+  // --- API Henting (GET) ---
+  const fetchTodos = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/todos`);
+      if (!response.ok) {
+        throw new Error('Kunne ikke hente oppgaver');
       }
-    };
-
-    fetchTodos();
-    
-    // Behold n8n-logikken hvis du bruker den
-    const webhook = localStorage.getItem('n8nWebhook');
-    const events = localStorage.getItem('n8nEvents');
-    if (webhook) setN8nWebhookUrl(webhook);
-    if (events) setN8nEvents(JSON.parse(events));
+      const data = await response.json();
+      // Sikkerhet: Sikrer at alle Todos har nødvendige felter fra interfacet (f.eks. id som string)
+      const formattedTodos: Todo[] = data.todos.map((t: any) => ({
+        ...t,
+        id: String(t.id), // Sikrer at ID er en streng for React keys
+        // Sikrer at komplekse lister er initialisert
+        tags: t.tags || [], 
+        subtasks: t.subtasks || [],
+        comments: t.comments || [],
+        description: t.description || '',
+        dueDate: t.dueDate || undefined,
+        assignee: t.assignee || undefined,
+        category: t.category || undefined,
+        estimatedHours: t.estimatedHours || undefined,
+        actualHours: t.actualHours || undefined,
+      }));
+      setTodos(formattedTodos);
+    } catch (error) {
+      console.error("Feil ved henting av todos:", error);
+      // Fallback/feilmelding til bruker kan legges til her
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('n8nWebhook', n8nWebhookUrl);
-    localStorage.setItem('n8nEvents', JSON.stringify(n8nEvents));
-  }, [n8nWebhookUrl, n8nEvents]);
+    fetchTodos();
+  }, [fetchTodos]);
 
-  const sendToN8N = async (event: string, data: any) => {
-    if (!n8nWebhookUrl) return;
+  // --- Oppgavelogikk (CRUD) ---
 
-    const eventEnabled = n8nEvents[event as keyof typeof n8nEvents];
-    if (!eventEnabled) return;
-
-    try {
-      const response = await fetch(n8nWebhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          event,
-          data,
-          timestamp: new Date().toISOString(),
-          source: 'smart-todo-list',
-        }),
-      });
-
-      if (!response.ok) {
-        console.warn('n8n webhook error:', response.status);
-      }
-    } catch (err) {
-      console.error('Failed to send to n8n:', err);
-    }
-  };
-
-  const handleAddTodo = async () => {
-    // Sjekk at input ikke er tomt
-    if (!input.trim()) {
-      setError('Please enter a task title');
-      return;
-    }
-
-    try {
-      // 1. Send data til serveren (Backend)
-      const response = await fetch(`${API_BASE_URL}/todos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: input,
-          completed: false,
-          priority: priority === 'set priority' ? 'medium' : priority // Backend må ha en gyldig verdi
-        })
-      });
-
-      if (!response.ok) throw new Error('Feil ved lagring til server');
-
-      // 2. Få svar fra serveren med den nye oppgaven (inkludert ID)
-      const result = await response.json();
-      const savedTodo = result.todo;
-
-      // 3. Oppdater nettsiden (Frontend)
-      // Vi legger til feltene som frontend trenger, men som backend kanskje mangler ennå
-      const newTodo: Todo = {
-        ...savedTodo,
-        id: savedTodo.id.toString(), // Gjør om ID til tekst for frontend
-        description, 
-        status: status,
-        createdAt: new Date().toISOString(),
-        dueDate: dueDate || undefined,
-        assignee: assignee || undefined,
-        category: category || undefined,
-        estimatedHours: estimatedHours ? Number(estimatedHours) : undefined,
-        subtasks: [],
-        comments: [],
-        tags: [],
-      };
-
-      setTodos([newTodo, ...todos]);
-      
-      // Send event til n8n (hvis du bruker det)
-      await sendToN8N('onCreate', newTodo);
-      
-      // 4. Tøm skjemaet
-      setInput('');
-      setDescription('');
-      setPriority('set priority');
-      setDueDate('');
-      setAssignee('');
-      setCategory('');
-      setEstimatedHours('');
-      setStatus('todo');
-      setError(null);
-
-    } catch (err) {
-      console.error(err);
-      setError('Kunne ikke lagre oppgaven. Er serveren på?');
-    }
-  };
-
-    setTodos([newTodo, ...todos]);
-    await sendToN8N('onCreate', newTodo);
-    
+  const resetInputFields = () => {
     setInput('');
     setDescription('');
     setPriority('set priority');
     setDueDate('');
     setAssignee('');
     setCategory('');
-    setEstimatedHours('');
-    setStatus('todo');
-    setError(null);
+    setNewTag('');
+    setShowAdvancedForm(false);
   };
 
- const handleToggle = async (id: string) => {
-    const todoToUpdate = todos.find((t) => t.id === id);
-    if (!todoToUpdate) return;
+  const handleAddTodo = async () => {
+    if (!input.trim()) return;
 
-    const newCompletedStatus = !todoToUpdate.completed;
-
-    // Oppdater UI umiddelbart (Optimistic UI)
-    const updatedTodos = todos.map((todo) =>
-      todo.id === id ? { ...todo, completed: newCompletedStatus } : todo
-    );
-    setTodos(updatedTodos);
+    const newTodo: Omit<Todo, 'id' | 'subtasks' | 'comments' | 'attachments'> & { id?: string } = {
+      title: input.trim(),
+      description: description.trim(),
+      completed: false,
+      priority: priority === 'set priority' ? 'medium' : priority,
+      createdAt: new Date().toISOString(),
+      dueDate: dueDate || undefined,
+      assignee: assignee || undefined,
+      category: category || undefined,
+      tags: newTag ? [newTag.trim()] : [],
+      status: 'todo',
+    };
 
     try {
-      // Send endring til backend
-      await fetch(`${API_BASE_URL}/todos/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          completed: newCompletedStatus
-        })
+      const response = await fetch(`${API_BASE_URL}/todos`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newTodo),
       });
+
+      if (!response.ok) {
+        throw new Error('Kunne ikke legge til oppgave');
+      }
+
+      const result = await response.json();
+      const createdTodo: Todo = { 
+        ...result.todo, 
+        id: String(result.todo.id), // Sikrer at ID er string
+        tags: result.todo.tags || [],
+        subtasks: result.todo.subtasks || [],
+        comments: result.todo.comments || [],
+      };
       
-      await sendToN8N('onUpdate', { ...todoToUpdate, completed: newCompletedStatus });
-    } catch (err) {
-      console.error("Kunne ikke oppdatere", err);
-      // Rull tilbake hvis det feiler (valgfritt)
+      setTodos((prevTodos) => [createdTodo, ...prevTodos]);
+      resetInputFields();
+      await sendToN8N('onCreate', createdTodo);
+      
+    } catch (error) {
+      console.error("Feil ved legging til todo:", error);
     }
   };
-  const handleStatusChange = async (id: string, newStatus: Todo['status']) => {
-    const updated = todos.map((todo) =>
-      todo.id === id ? { ...todo, status: newStatus } : todo
-    );
-    setTodos(updated);
-    const updatedTodo = updated.find((t) => t.id === id)!;
-    await sendToN8N('onStatusChange', { id, status: newStatus, todo: updatedTodo });
-  };
 
- const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string) => {
     try {
       await fetch(`${API_BASE_URL}/todos/${id}`, {
         method: 'DELETE',
       });
-      
-      const todo = todos.find((t) => t.id === id)!;
-      setTodos(todos.filter((t) => t.id !== id));
-      await sendToN8N('onDelete', { id, deletedTodo: todo });
+      setTodos((prevTodos) => prevTodos.filter((todo) => todo.id !== id));
+      await sendToN8N('onDelete', { id });
     } catch (err) {
-      console.error("Feil ved sletting:", err);
+      console.error("Kunne ikke slette på serveren:", err);
+      // Re-fetch for å synkronisere ved feil: fetchTodos();
     }
   };
 
-  const handleAddComment = async (todoId: string) => {
+  const handleToggle = async (id: string) => {
+    const todoToUpdate = todos.find((t) => t.id === id);
+    if (!todoToUpdate) return;
+
+    const newCompletedStatus = !todoToUpdate.completed;
+    const newStatus = newCompletedStatus ? 'done' : 'todo';
+
+    // 1. Optimal oppdatering av UI
+    const updatedTodos = todos.map((todo) =>
+      todo.id === id ? { ...todo, completed: newCompletedStatus, status: newStatus } : todo
+    );
+    setTodos(updatedTodos);
+
+    try {
+      // 2. Send endringen til backend via PUT
+      await fetch(`${API_BASE_URL}/todos/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          completed: newCompletedStatus,
+          status: newStatus
+        })
+      });
+
+      // 3. Send event til n8n
+      await sendToN8N('onToggle', { ...todoToUpdate, completed: newCompletedStatus, status: newStatus });
+
+    } catch (err) {
+      console.error("Kunne ikke oppdatere på serveren:", err);
+    }
+  };
+
+  const handleStatusChange = async (id: string, newStatus: Todo['status']) => {
+    const todoToUpdate = todos.find((t) => t.id === id);
+    if (!todoToUpdate) return;
+    
+    const newCompletedStatus = newStatus === 'done' ? true : false;
+    
+    // 1. Optimal oppdatering av UI
+    const updatedTodos = todos.map((todo) =>
+      todo.id === id ? { ...todo, status: newStatus, completed: newCompletedStatus } : todo
+    );
+    setTodos(updatedTodos);
+
+    try {
+      // 2. Send endringen til backend via PUT
+      await fetch(`${API_BASE_URL}/todos/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: newStatus,
+          completed: newCompletedStatus
+        })
+      });
+
+      // 3. Send event til n8n
+      await sendToN8N('onStatusChange', { ...todoToUpdate, status: newStatus, completed: newCompletedStatus });
+
+    } catch (err) {
+      console.error("Kunne ikke oppdatere status på serveren:", err);
+    }
+  };
+  
+  const handleSave = async (id: string, field: keyof Todo, value: any) => {
+    const todoToUpdate = todos.find((t) => t.id === id);
+    if (!todoToUpdate) return;
+
+    // Oppdater UI umiddelbart
+    const updatedTodos = todos.map((todo) =>
+      todo.id === id ? { ...todo, [field]: value } : todo
+    );
+    setTodos(updatedTodos);
+    
+    const updatePayload = { [field]: value };
+
+    try {
+      await fetch(`${API_BASE_URL}/todos/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatePayload)
+      });
+      await sendToN8N('onUpdate', { ...todoToUpdate, [field]: value });
+    } catch (err) {
+      console.error(`Kunne ikke lagre felt ${String(field)} på serveren:`, err);
+    }
+  };
+
+  const handleAddComment = (todoId: string) => {
     if (!newComment.trim()) return;
 
-    const updated = todos.map((todo) =>
-      todo.id === todoId
-        ? {
-            ...todo,
-            comments: [
-              ...(todo.comments || []),
-              {
-                id: Date.now().toString(),
-                author: 'You',
-                text: newComment,
-                timestamp: new Date().toISOString(),
-              },
-            ],
-          }
-        : todo
+    const newCommentObj: Comment = {
+      id: Date.now().toString(),
+      author: 'User', // Kan hentes fra en innlogget bruker senere
+      text: newComment.trim(),
+      timestamp: new Date().toISOString(),
+    };
+
+    setTodos((prevTodos) =>
+      prevTodos.map((todo) =>
+        todo.id === todoId
+          ? {
+              ...todo,
+              comments: [...(todo.comments || []), newCommentObj],
+            }
+          : todo
+      )
     );
-    setTodos(updated);
-    const updatedTodo = updated.find((t) => t.id === todoId)!;
-    await sendToN8N('onComment', { id: todoId, comment: newComment, todo: updatedTodo });
     setNewComment('');
+    // Merk: For enkelthet lagres ikke kommentarer til FastAPI i dette eksempelet,
+    // men logikken for `setTodos` er på plass for å vise dem.
+    // En egen `POST /todos/{id}/comments` rute trengs i FastAPI for permanent lagring.
   };
 
-  const handleAssign = async (id: string, newAssignee: string) => {
-    const updated = todos.map((todo) =>
-      todo.id === id ? { ...todo, assignee: newAssignee } : todo
-    );
-    setTodos(updated);
-    const updatedTodo = updated.find((t) => t.id === id)!;
-    await sendToN8N('onAssign', { id, assignee: newAssignee, todo: updatedTodo });
-  };
-
+  // --- Filtrering og visning ---
   const filteredTodos = todos
-    .filter((todo) => {
-      if (filter === 'active') return !todo.completed;
-      if (filter === 'completed') return todo.completed;
-      return true;
-    })
-    .filter((todo) =>
-      todo.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      todo.description.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    .filter((todo) => (filter === 'all' ? true : todo.status === filter))
+    .filter((todo) => showCompleted || !todo.completed);
 
-  const stats = {
-    total: todos.length,
-    completed: todos.filter((t) => t.completed).length,
-    active: todos.filter((t) => !t.completed).length,
-    inProgress: todos.filter((t) => t.status === 'in-progress').length,
-    highpriority: todos.filter((t) => t.priority === 'high' || t.priority === 'urgent').length,
+  const kanbanColumns = [
+    { title: 'To Do', status: 'todo' as const, color: 'var(--gray-600)' },
+    { title: 'In Progress', status: 'in-progress' as const, color: 'var(--primary)' },
+    { title: 'Review', status: 'review' as const, color: 'var(--warning)' },
+    { title: 'Done', status: 'done' as const, color: 'var(--success)' },
+  ];
+  
+  // Hjelpefunksjon for å returnere riktig ikon basert på prioritet
+  const getPriorityIcon = (p: Todo['priority']) => {
+    switch (p) {
+      case 'urgent':
+      case 'high':
+        return <AlertCircle size={16} className="text-danger" />;
+      case 'medium':
+        return <CheckCircle2 size={16} className="text-warning" />;
+      case 'low':
+        return <Circle size={16} className="text-success" />;
+      default:
+        return null;
+    }
   };
 
-  const statusCounts = {
-    todo: todos.filter((t) => t.status === 'todo').length,
-    'in-progress': todos.filter((t) => t.status === 'in-progress').length,
-    review: todos.filter((t) => t.status === 'review').length,
-    done: todos.filter((t) => t.status === 'done').length,
-  };
+  // Funksjon for å sortere oppgavene (brukes for listevisning)
+  const sortedTodos = [...filteredTodos].sort((a, b) => {
+    const priorityOrder: { [key: string]: number } = { 'urgent': 4, 'high': 3, 'medium': 2, 'low': 1, 'set priority': 0 };
+    return priorityOrder[b.priority] - priorityOrder[a.priority];
+  });
+  
+  // Statistikk for Dashboard
+  const stats = [
+    { label: 'Total Tasks', value: todos.length, icon: Plus },
+    { label: 'To Do', value: todos.filter(t => t.status === 'todo').length, icon: Circle, color: 'var(--gray-600)' },
+    { label: 'In Progress', value: todos.filter(t => t.status === 'in-progress').length, icon: RefreshCw, color: 'var(--primary)' },
+    { label: 'Completed', value: todos.filter(t => t.completed).length, icon: CheckCircle2, color: 'var(--success)' },
+  ];
 
-  return (
-    <div className="app-container">
-      <header className="app-header">
-        <div className="header-content">
-          <div className="header-left">
-            <h1 className="app-title">Smart Todo Manager</h1>
-            <p className="app-subtitle">Advanced Task Management with n8n Integration</p>
-          </div>
-          <div className="header-right">
-            <button
-              onClick={() => setShowN8nSettings(!showN8nSettings)}
-              className="btn-settings"
-              title="n8n Settings"
-            >
-              <Settings size={24} />
-            </button>
-          </div>
+  // --- Render funksjon ---
+
+  const renderTodoCard = (todo: Todo) => (
+    <div key={todo.id} className={`todo-card ${todo.completed ? 'completed' : ''} priority-${todo.priority}`}>
+      <div className="card-header">
+        <button className="toggle-btn" onClick={() => handleToggle(todo.id)}>
+          {todo.completed ? <CheckCircle2 size={20} className="text-success" /> : <Circle size={20} />}
+        </button>
+        <input
+          type="text"
+          value={todo.title}
+          className={`todo-title-input ${todo.completed ? 'completed-text' : ''}`}
+          onChange={(e) => handleSave(todo.id, 'title', e.target.value)}
+          onBlur={(e) => handleSave(todo.id, 'title', e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+        />
+        <button className="delete-btn" onClick={() => handleDelete(todo.id)}>
+          <Trash2 size={20} />
+        </button>
+      </div>
+
+      <div className="card-details">
+        {todo.description && (
+          <p className="description-text">
+            <Edit2 size={14} /> {todo.description}
+          </p>
+        )}
+        <div className="detail-row">
+          {getPriorityIcon(todo.priority)}
+          <select
+            value={todo.priority}
+            onChange={(e) => handleSave(todo.id, 'priority', e.target.value as Todo['priority'])}
+            className={`priority-select priority-${todo.priority}`}
+          >
+            {['set priority', 'low', 'medium', 'high', 'urgent'].map(p => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
         </div>
 
-        {showN8nSettings && (
-          <div className="n8n-settings-panel">
-            <div className="settings-content">
-              <h3>n8n Webhook Configuration</h3>
-              <input
-                type="text"
-                value={n8nWebhookUrl}
-                onChange={(e) => setN8nWebhookUrl(e.target.value)}
-                placeholder="Enter your n8n webhook URL..."
-                className="webhook-input"
-              />
-              
-              <div className="event-toggles">
-                <h4>Enable Event Triggers:</h4>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={n8nEvents.onCreate}
-                    onChange={(e) => setN8nEvents({ ...n8nEvents, onCreate: e.target.checked })}
-                  />
-                  Task Created
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={n8nEvents.onUpdate}
-                    onChange={(e) => setN8nEvents({ ...n8nEvents, onUpdate: e.target.checked })}
-                  />
-                  Task Updated
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={n8nEvents.onDelete}
-                    onChange={(e) => setN8nEvents({ ...n8nEvents, onDelete: e.target.checked })}
-                  />
-                  Task Deleted
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={n8nEvents.onStatusChange}
-                    onChange={(e) => setN8nEvents({ ...n8nEvents, onStatusChange: e.target.checked })}
-                  />
-                  Status Changed
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={n8nEvents.onAssign}
-                    onChange={(e) => setN8nEvents({ ...n8nEvents, onAssign: e.target.checked })}
-                  />
-                  Task Assigned
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={n8nEvents.onComment}
-                    onChange={(e) => setN8nEvents({ ...n8nEvents, onComment: e.target.checked })}
-                  />
-                  Comment Added
-                </label>
-              </div>
-            </div>
+        {todo.dueDate && (
+          <div className="detail-row">
+            <Calendar size={14} />
+            <span>Due: {new Date(todo.dueDate).toLocaleDateString()}</span>
           </div>
         )}
-      </header>
-
-      <main className="app-main">
-        <div className="stats-container">
-          <div className="stat-item">
-            <span className="stat-icon">📊</span>
-            <div className="stat-details">
-              <span className="stat-label">Total</span>
-              <span className="stat-number">{stats.total}</span>
-            </div>
+        {todo.assignee && (
+          <div className="detail-row">
+            <Users size={14} />
+            <span>Assigned: {todo.assignee}</span>
           </div>
-          <div className="stat-item">
-            <span className="stat-icon">✅</span>
-            <div className="stat-details">
-              <span className="stat-label">Completed</span>
-              <span className="stat-number">{stats.completed}</span>
-            </div>
+        )}
+        {todo.tags && todo.tags.length > 0 && (
+          <div className="detail-row tags-list">
+            {todo.tags.map(tag => <span key={tag} className="tag">{tag}</span>)}
           </div>
-          <div className="stat-item">
-            <span className="stat-icon">⚡</span>
-            <div className="stat-details">
-              <span className="stat-label">In Progress</span>
-              <span className="stat-number">{stats.inProgress}</span>
-            </div>
-          </div>
-          <div className="stat-item">
-            <span className="stat-icon">🔥</span>
-            <div className="stat-details">
-              <span className="stat-label">High priority</span>
-              <span className="stat-number">{stats.highpriority}</span>
-            </div>
-          </div>
+        )}
+      </div>
+      
+      <div className="card-footer">
+        <div className="status-control">
+          <label>Status:</label>
+          <select
+            value={todo.status}
+            onChange={(e) => handleStatusChange(todo.id, e.target.value as Todo['status'])}
+            className={`status-select status-${todo.status}`}
+          >
+            <option value="todo">To Do</option>
+            <option value="in-progress">In Progress</option>
+            <option value="review">Review</option>
+            <option value="done">Done</option>
+          </select>
         </div>
 
-        <div className="layout-wrapper">
-          <aside className="sidebar">
-            <div className="sidebar-section">
-              <h3>Status</h3>
-              {Object.entries(statusCounts).map(([status, count]) => (
-                <div key={status} className="sidebar-item">
-                  <span>{status.replace('-', ' ')}</span>
-                  <span className="badge">{count}</span>
+        <div className="todo-comments">
+          {(todo.comments || []).length > 0 && (
+            <div className="comments-list">
+              {todo.comments!.map((comment) => (
+                <div key={comment.id} className="comment">
+                  <strong>{comment.author}:</strong> {comment.text}
                 </div>
               ))}
             </div>
+          )}
+          <div className="add-comment">
+            <input
+              type="text"
+              placeholder="Add a comment..."
+              className="comment-input"
+              value={newComment} // Kontrollert input for å fange kommentar
+              onChange={(e) => setNewComment(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  // Her må du bruke state-verdien, ikke (e.target as any).value
+                  handleAddComment(todo.id);
+                  setNewComment(''); // Nullstill etter sendt
+                }
+              }}
+            />
+            <button className="send-comment-btn" onClick={() => handleAddComment(todo.id)}>
+              <Send size={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
-            <div className="sidebar-section">
-              <h3>View Mode</h3>
-              <div className="view-buttons">
-                <button
-                  className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
-                  onClick={() => setViewMode('list')}
-                >
-                  📋
-                </button>
-                <button
-                  className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
-                  onClick={() => setViewMode('grid')}
-                >
-                  📦
-                </button>
-                <button
-                  className={`view-btn ${viewMode === 'kanban' ? 'active' : ''}`}
-                  onClick={() => setViewMode('kanban')}
-                >
-                  📊
-                </button>
+  // --- JSX Rendering ---
+
+  return (
+    <div className="app-container">
+      <main className="app-main">
+        <div className="todo-page-wrapper">
+          <div className="header-content">
+            <h1 className="title">
+              <CheckCircle2 size={32} /> Smart To-Do List
+            </h1>
+            <button className="refresh-btn" onClick={fetchTodos} disabled={loading}>
+              <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+              {loading ? 'Laster...' : 'Oppdater'}
+            </button>
+          </div>
+
+          <div className="stats-container">
+            {stats.map(stat => (
+              <div key={stat.label} className="stat-card" style={{ borderLeftColor: stat.color }}>
+                <stat.icon size={20} style={{ color: stat.color }} />
+                <div className="stat-info">
+                  <span className="stat-value">{stat.value}</span>
+                  <span className="stat-label">{stat.label}</span>
+                </div>
               </div>
+            ))}
+          </div>
+
+          <div className="add-todo-section">
+            <div className="add-input-row">
+              <input
+                type="text"
+                placeholder="New task title..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    handleAddTodo();
+                  }
+                }}
+                className="main-input"
+              />
+              <button onClick={handleAddTodo} className="add-btn" aria-label="Add Task">
+                <Plus size={20} /> Add
+              </button>
+              <button
+                className="toggle-advanced-btn"
+                onClick={() => setShowAdvancedForm(!showAdvancedForm)}
+                aria-expanded={showAdvancedForm}
+                aria-label="Toggle Advanced Form"
+              >
+                <Settings size={20} />
+                <ChevronDown size={16} className={showAdvancedForm ? 'rotate-180' : ''} />
+              </button>
             </div>
-          </aside>
 
-          
-
-            {error && (
-              <div className="error-banner">
-                <AlertCircle size={20} />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <div className="form-card">
-              <h2>New Task</h2>
-              <div className="form-grid">
-                <div className="form-column-1">
-                  <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddTodo()}
-                    placeholder="Task title..."
-                    className="form-input-large"
-                  />
+            {showAdvancedForm && (
+              <div className="advanced-form">
+                <div className="form-grid">
                   <textarea
+                    placeholder="Description"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Task description..."
-                    className="form-textarea"
-                    rows={4}
+                    className="textarea-input"
+                  />
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value as Todo['priority'])}
+                  >
+                    <option value="set priority" disabled>Set Priority</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                  <input
+                    type="date"
+                    placeholder="Due Date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Assignee"
+                    value={assignee}
+                    onChange={(e) => setAssignee(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Category (e.g., Work, Personal)"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Tags (one tag only)"
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
                   />
                 </div>
-
-                <div className="form-column-2">
-                  <div className="form-group">
-                    <label>priority</label>
-                    <select value={priority} onChange={(e) => setPriority(e.target.value as any)} className="form-select">
-                      <option value="low">🟢 Low</option>
-                      <option value="medium">🟡 Medium</option>
-                      <option value="high">🔴 High</option>
-                      <option value="urgent">🚨 Urgent</option>
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Status</label>
-                    <select value={status} onChange={(e) => setStatus(e.target.value as any)} className="form-select">
-                      <option value="todo">To Do</option>
-                      <option value="in-progress">In Progress</option>
-                      <option value="review">Review</option>
-                      <option value="done">Done</option>
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Due Date</label>
-                    <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="form-input" />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Assignee</label>
-                    <input type="text" value={assignee} onChange={(e) => setAssignee(e.target.value)} placeholder="Name..." className="form-input" />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Category</label>
-                    <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category..." className="form-input" />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Est. Hours</label>
-                    <input type="number" value={estimatedHours} onChange={(e) => setEstimatedHours(e.target.value)} placeholder="Hours..." className="form-input" />
-                  </div>
-                </div>
               </div>
+            )}
+          </div>
 
-              <button onClick={handleAddTodo} className="btn-primary">
-                <Plus size={20} />
-                Create Task
+          <div className="controls-section">
+            <div className="filter-controls">
+              <label><Filter size={16} /> Filter by Status:</label>
+              <select value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
+                <option value="all">All</option>
+                <option value="todo">To Do</option>
+                <option value="in-progress">In Progress</option>
+                <option value="review">Review</option>
+                <option value="done">Done</option>
+              </select>
+            </div>
+            
+            <div className="view-controls">
+              <button
+                className={`view-btn ${view === 'list' ? 'active' : ''}`}
+                onClick={() => setView('list')}
+              >
+                List View
               </button>
-
-              <div className="main-content">
-            <div className="controls-section">
-              <div className="search-box">
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="🔍 Search tasks..."
-                  className="search-input"
-                />
-              </div>
-
-              <div className="filter-controls">
-                {(['all', 'active', 'completed'] as const).map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setFilter(f)}
-                    className={`filter-btn ${filter === f ? 'active' : ''}`}
-                  >
-                    {f.charAt(0).toUpperCase() + f.slice(1)}
-                  </button>
-                ))}
-              </div>
+              <button
+                className={`view-btn ${view === 'kanban' ? 'active' : ''}`}
+                onClick={() => setView('kanban')}
+              >
+                Kanban View
+              </button>
             </div>
             
+            <div className="toggle-completed">
+              <button
+                className="toggle-completed-btn"
+                onClick={() => setShowCompleted(!showCompleted)}
+              >
+                {showCompleted ? <Eye size={16} /> : <EyeOff size={16} />}
+                {showCompleted ? 'Hide Completed' : 'Show Completed'}
+              </button>
             </div>
+          </div>
 
-            
-
-            <div className={`todos-container ${viewMode}`}>
-              {filteredTodos.length === 0 ? (
-                <div className="empty-state">
-                  <div className="empty-icon">📭</div>
-                  <p>No tasks found</p>
-                </div>
-              ) : (
-                filteredTodos.map((todo) => (
-                  <div key={todo.id} className={`todo-card ${todo.status}`}>
-                    <div className="todo-header">
-                      <button
-                        onClick={() => handleToggle(todo.id)}
-                        className="checkbox-btn"
-                      >
-                        {todo.completed ? (
-                          <CheckCircle2 size={24} className="checked" />
-                        ) : (
-                          <Circle size={24} />
-                        )}
-                      </button>
-                      <div className="todo-title-section">
-                        <h3 className={`todo-title ${todo.completed ? 'completed' : ''}`}>
-                          {todo.title}
-                        </h3>
-                        {todo.category && <span className="category-badge">{todo.category}</span>}
-                      </div>
-                      <button onClick={() => handleDelete(todo.id)} className="btn-delete-small">
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-
-                    {todo.description && (
-                      <p className="todo-description">{todo.description}</p>
-                    )}
-
-                    <div className="todo-meta">
-                      <div className="meta-item">
-                        <span className={`priority-badge ${todo.priority}`}>{todo.priority}</span>
-                      </div>
-                      {todo.dueDate && (
-                        <div className="meta-item">
-                          <Calendar size={14} />
-                          <span>{new Date(todo.dueDate).toLocaleDateString()}</span>
-                        </div>
+          <div className="todo-list-wrapper">
+            <div className={`todos-container ${view}`}>
+              {view === 'kanban' ? (
+                // --- Kanban View ---
+                kanbanColumns.map((column) => (
+                  <div key={column.status} className="kanban-column">
+                    <h3 className="column-title" style={{ borderBottomColor: column.color }}>
+                      {column.title} ({filteredTodos.filter(t => t.status === column.status).length})
+                    </h3>
+                    <div className="column-content">
+                      {filteredTodos
+                        .filter((t) => t.status === column.status)
+                        .sort((a, b) => { // Sorterer også i Kanban
+                            const priorityOrder: { [key: string]: number } = { 'urgent': 4, 'high': 3, 'medium': 2, 'low': 1, 'set priority': 0 };
+                            return priorityOrder[b.priority] - priorityOrder[a.priority];
+                        })
+                        .map(renderTodoCard)}
+                      {!filteredTodos.filter(t => t.status === column.status).length && (
+                        <p className="no-tasks-msg">No tasks in this column.</p>
                       )}
-                      {todo.assignee && (
-                        <div className="meta-item">
-                          <Users size={14} />
-                          <span>{todo.assignee}</span>
-                        </div>
-                      )}
-                      {todo.estimatedHours && (
-                        <div className="meta-item">
-                          <Clock size={14} />
-                          <span>{todo.estimatedHours}h</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="todo-status-selector">
-                      <select
-                        value={todo.status}
-                        onChange={(e) => handleStatusChange(todo.id, e.target.value as any)}
-                        className="status-select"
-                      >
-                        <option value="todo">To Do</option>
-                        <option value="in-progress">In Progress</option>
-                        <option value="review">Review</option>
-                        <option value="done">Done</option>
-                      </select>
-                    </div>
-
-                    <div className="todo-comments">
-                      {(todo.comments || []).length > 0 && (
-                        <div className="comments-list">
-                          {todo.comments.map((comment) => (
-                            <div key={comment.id} className="comment">
-                              <strong>{comment.author}:</strong> {comment.text}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      // ... (kode over)
-
-                      <div className="add-comment">
-                        <input
-                          type="text"
-                          placeholder="Add a comment..."
-                          className="comment-input"
-                          onKeyDown={(e) => { 
-                            if (e.key === 'Enter') { 
-                              setNewComment((e.target as any).value);
-                              handleAddComment(todo.id);
-                              (e.target as any).value = '';
-                            } 
-                          }} 
-                        /> 
-                      </div>
                     </div>
                   </div>
-                )) 
+                ))
+              ) : (
+                // --- List View ---
+                sortedTodos.length === 0 ? (
+                  <p className="no-tasks-msg">No tasks found matching your filter/visibility settings.</p>
+                ) : (
+                    sortedTodos.map(renderTodoCard)
+                )
               )}
             </div>
           </div>
