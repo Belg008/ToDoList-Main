@@ -1,0 +1,13 @@
+# Dockerfile.backend
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Installer nødvendige pakker
+RUN pip install fastapi uvicorn
+
+# Kopier API-koden inn i containeren
+COPY fastapi.py .
+
+# Start serveren (host 0.0.0.0 er viktig for at den skal nås utenfra containeren)
+CMD ["uvicorn", "fastapi:app", "--host", "0.0.0.0", "--port", "8000"]
