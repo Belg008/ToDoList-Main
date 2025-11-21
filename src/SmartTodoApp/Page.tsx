@@ -5,6 +5,7 @@ import {
   ChevronDown, Edit2, Eye, EyeOff, Send
 } from 'lucide-react';
 import './Page.css';
+import { API_BASE_URL } from '../config';
 
 interface Todo {
   id: string;
@@ -65,25 +66,35 @@ const Page: React.FC = () => {
   const [newComment, setNewComment] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'kanban'>('grid');
 
+// Hent todos fra API når siden lastes
   useEffect(() => {
-    const stored = localStorage.getItem('smartTodos');
+    const fetchTodos = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/todos`);
+        const data = await response.json();
+        // Backend returnerer { "todos": [...] }, så vi henter arrayet derfra
+        // Vi konverterer ID til string fordi frontenden din bruker string
+        const formattedTodos = data.todos.map((t: any) => ({
+          ...t,
+          id: t.id.toString(),
+          // Backend har foreløpig ikke description, dueDate, etc., så vi må håndtere det
+          // hvis du vil bevare data backend ikke støtter ennå.
+        }));
+        setTodos(formattedTodos);
+      } catch (error) {
+        console.error("Klarte ikke hente todos:", error);
+        setError("Kunne ikke koble til serveren");
+      }
+    };
+
+    fetchTodos();
+    
+    // Behold n8n-logikken hvis du bruker den
     const webhook = localStorage.getItem('n8nWebhook');
     const events = localStorage.getItem('n8nEvents');
-    
-    if (stored) {
-      try {
-        setTodos(JSON.parse(stored));
-      } catch (e) {
-        console.error('Failed to load todos:', e);
-      }
-    }
     if (webhook) setN8nWebhookUrl(webhook);
     if (events) setN8nEvents(JSON.parse(events));
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('smartTodos', JSON.stringify(todos));
-  }, [todos]);
 
   useEffect(() => {
     localStorage.setItem('n8nWebhook', n8nWebhookUrl);
@@ -119,27 +130,68 @@ const Page: React.FC = () => {
   };
 
   const handleAddTodo = async () => {
+    // Sjekk at input ikke er tomt
     if (!input.trim()) {
       setError('Please enter a task title');
       return;
     }
 
-    const newTodo: Todo = {
-      id: Date.now().toString(),
-      title: input,
-      description,
-      completed: false,
-      priority,
-      status,
-      createdAt: new Date().toISOString(),
-      dueDate: dueDate || undefined,
-      assignee: assignee || undefined,
-      category: category || undefined,
-      estimatedHours: estimatedHours ? Number(estimatedHours) : undefined,
-      subtasks: [],
-      comments: [],
-      tags: [],
-    };
+    try {
+      // 1. Send data til serveren (Backend)
+      const response = await fetch(`${API_BASE_URL}/todos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: input,
+          completed: false,
+          priority: priority === 'set priority' ? 'medium' : priority // Backend må ha en gyldig verdi
+        })
+      });
+
+      if (!response.ok) throw new Error('Feil ved lagring til server');
+
+      // 2. Få svar fra serveren med den nye oppgaven (inkludert ID)
+      const result = await response.json();
+      const savedTodo = result.todo;
+
+      // 3. Oppdater nettsiden (Frontend)
+      // Vi legger til feltene som frontend trenger, men som backend kanskje mangler ennå
+      const newTodo: Todo = {
+        ...savedTodo,
+        id: savedTodo.id.toString(), // Gjør om ID til tekst for frontend
+        description, 
+        status: status,
+        createdAt: new Date().toISOString(),
+        dueDate: dueDate || undefined,
+        assignee: assignee || undefined,
+        category: category || undefined,
+        estimatedHours: estimatedHours ? Number(estimatedHours) : undefined,
+        subtasks: [],
+        comments: [],
+        tags: [],
+      };
+
+      setTodos([newTodo, ...todos]);
+      
+      // Send event til n8n (hvis du bruker det)
+      await sendToN8N('onCreate', newTodo);
+      
+      // 4. Tøm skjemaet
+      setInput('');
+      setDescription('');
+      setPriority('set priority');
+      setDueDate('');
+      setAssignee('');
+      setCategory('');
+      setEstimatedHours('');
+      setStatus('todo');
+      setError(null);
+
+    } catch (err) {
+      console.error(err);
+      setError('Kunne ikke lagre oppgaven. Er serveren på?');
+    }
+  };
 
     setTodos([newTodo, ...todos]);
     await sendToN8N('onCreate', newTodo);
@@ -155,15 +207,34 @@ const Page: React.FC = () => {
     setError(null);
   };
 
-  const handleToggle = async (id: string) => {
-    const updated = todos.map((todo) =>
-      todo.id === id ? { ...todo, completed: !todo.completed } : todo
-    );
-    setTodos(updated);
-    const updatedTodo = updated.find((t) => t.id === id)!;
-    await sendToN8N('onUpdate', updatedTodo);
-  };
+ const handleToggle = async (id: string) => {
+    const todoToUpdate = todos.find((t) => t.id === id);
+    if (!todoToUpdate) return;
 
+    const newCompletedStatus = !todoToUpdate.completed;
+
+    // Oppdater UI umiddelbart (Optimistic UI)
+    const updatedTodos = todos.map((todo) =>
+      todo.id === id ? { ...todo, completed: newCompletedStatus } : todo
+    );
+    setTodos(updatedTodos);
+
+    try {
+      // Send endring til backend
+      await fetch(`${API_BASE_URL}/todos/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          completed: newCompletedStatus
+        })
+      });
+      
+      await sendToN8N('onUpdate', { ...todoToUpdate, completed: newCompletedStatus });
+    } catch (err) {
+      console.error("Kunne ikke oppdatere", err);
+      // Rull tilbake hvis det feiler (valgfritt)
+    }
+  };
   const handleStatusChange = async (id: string, newStatus: Todo['status']) => {
     const updated = todos.map((todo) =>
       todo.id === id ? { ...todo, status: newStatus } : todo
@@ -173,10 +244,18 @@ const Page: React.FC = () => {
     await sendToN8N('onStatusChange', { id, status: newStatus, todo: updatedTodo });
   };
 
-  const handleDelete = async (id: string) => {
-    const todo = todos.find((t) => t.id === id)!;
-    setTodos(todos.filter((t) => t.id !== id));
-    await sendToN8N('onDelete', { id, deletedTodo: todo });
+ const handleDelete = async (id: string) => {
+    try {
+      await fetch(`${API_BASE_URL}/todos/${id}`, {
+        method: 'DELETE',
+      });
+      
+      const todo = todos.find((t) => t.id === id)!;
+      setTodos(todos.filter((t) => t.id !== id));
+      await sendToN8N('onDelete', { id, deletedTodo: todo });
+    } catch (err) {
+      console.error("Feil ved sletting:", err);
+    }
   };
 
   const handleAddComment = async (todoId: string) => {
