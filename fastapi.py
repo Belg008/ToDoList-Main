@@ -2,71 +2,102 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional, List
+from datetime import datetime
 
-# Opprett FastAPI app EN gang
 app = FastAPI()
 
-# Legg til CORS-støtte umiddelbart etter app-opprettelse
-# Dette gjør at API-et kan nås fra andre nettsider/domener
+# CORS - viktig for å tillate frontend å kommunisere med backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Tillater requests fra alle domener
-    allow_methods=["*"],  # Tillater alle HTTP metoder (GET, POST, PUT, DELETE)
-    allow_headers=["*"],  # Tillater alle HTTP-headers i forespørselene
+    allow_origins=["*"],  # I produksjon, sett dette til din frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Initialiser data EN gang med noen eksempel-todos
-todos = [
-    {"id": 1, "title": "Lær FastAPI", "completed": False, "priority": "medium"},
-    {"id": 2, "title": "Lag to-do app", "completed": False, "priority": "high"}
-]
-next_id = 3  # Holder styr på neste ID som skal brukesa
+# Data models som matcher frontend
+class Comment(BaseModel):
+    id: str
+    author: str
+    text: str
+    timestamp: str
 
-# Pydantic-modeller for validering av data
-class Todo(BaseModel):
+class Subtask(BaseModel):
+    id: str
     title: str
+    completed: bool
+
+class Todo(BaseModel):
+    id: Optional[str] = None
+    title: str
+    description: str
     completed: bool = False
     priority: str = "medium"
+    createdAt: Optional[str] = None
+    dueDate: Optional[str] = None
+    assignee: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = []
+    comments: Optional[List[Comment]] = []
+    estimatedHours: Optional[int] = None
+    actualHours: Optional[int] = None
+    status: str = "todo"
+    subtasks: Optional[List[Subtask]] = []
 
 class TodoUpdate(BaseModel):
-    # Tillater partial updates - alle felt er optional
     title: Optional[str] = None
+    description: Optional[str] = None
     completed: Optional[bool] = None
     priority: Optional[str] = None
+    dueDate: Optional[str] = None
+    assignee: Optional[str] = None
+    category: Optional[str] = None
+    status: Optional[str] = None
+    estimatedHours: Optional[int] = None
 
-
-#forespørsmål for AI-en
-class AIRequest(BaseModel):
-    # Modell for AI-forespørsler fra nettsiden
+class CommentCreate(BaseModel):
+    author: str
     text: str
-    action: str
-    todos: Optional[List[dict]] = None
 
-# --- ROUTES / ENDEPUNKTER ---
+# In-memory database (i produksjon, bruk ekte database)
+todos = []
+next_id = 1
 
 @app.get("/")
 def home():
-    """Hjemmeside-endepunkt som returnerer en velkomstmelding"""
-    return {"message": "Velkommen til to-do appen!"}
+    """Health check endpoint"""
+    return {"status": "ok", "message": "Smart Todo API"}
 
-@app.get("/todos")
-def get_todos(completed: Optional[bool] = None):
+@app.get("/api/todos")
+def get_todos(
+    completed: Optional[bool] = None,
+    status: Optional[str] = None,
+    priority: Optional[str] = None,
+    assignee: Optional[str] = None
+):
     """
-    Henter alle todos eller filtrerer basert på completed status
-    Query parameter: ?completed=true eller ?completed=false
+    Hent alle todos med valgfri filtering
     """
-    if completed is None:
-        return {"todos": todos}
+    filtered_todos = todos.copy()
     
-    # Filtrer basert på completed status
-    filtered = [t for t in todos if t["completed"] == completed]
-    return {"todos": filtered}
+    if completed is not None:
+        filtered_todos = [t for t in filtered_todos if t["completed"] == completed]
+    
+    if status:
+        filtered_todos = [t for t in filtered_todos if t["status"] == status]
+    
+    if priority:
+        filtered_todos = [t for t in filtered_todos if t["priority"] == priority]
+    
+    if assignee:
+        filtered_todos = [t for t in filtered_todos if t.get("assignee") == assignee]
+    
+    return {"todos": filtered_todos, "count": len(filtered_todos)}
 
-@app.get("/todos/{todo_id}")
-def get_todo(todo_id: int):
+@app.get("/api/todos/{todo_id}")
+def get_todo(todo_id: str):
     """
-    Henter en spesifikk todo basert på ID
-    Path parameter: /todos/1
+    Hent en spesifikk todo
     """
     for todo in todos:
         if todo["id"] == todo_id:
@@ -74,53 +105,101 @@ def get_todo(todo_id: int):
     
     raise HTTPException(status_code=404, detail="Todo ikke funnet")
 
-#en liten health check
-@app.get("/health")
-def health_check():
-    return {"status": "ok", "todos_count": len(todos)}
-
-@app.post("/todos")
+@app.post("/api/todos")
 def create_todo(todo: Todo):
     """
-    Oppretter en ny todo
-    Body: {"title": "Min nye oppgave", "completed": false, "priority": "high"}
+    Opprett ny todo
     """
     global next_id
     
-    new_todo = {
-        "id": next_id,
-        "title": todo.title,
-        "completed": todo.completed,
-        "priority": todo.priority
-    }
+    new_todo = todo.dict()
+    new_todo["id"] = str(next_id)
+    new_todo["createdAt"] = datetime.now().isoformat()
     
-    todos.append(new_todo)
+    if not new_todo.get("comments"):
+        new_todo["comments"] = []
+    if not new_todo.get("tags"):
+        new_todo["tags"] = []
+    if not new_todo.get("subtasks"):
+        new_todo["subtasks"] = []
+    
+    todos.insert(0, new_todo)  # Legg til først i listen
     next_id += 1
     
     return {"message": "Todo opprettet!", "todo": new_todo}
 
-@app.put("/todos/{todo_id}")
-def update_todo(todo_id: int, updates: TodoUpdate):
+@app.put("/api/todos/{todo_id}")
+def update_todo(todo_id: str, updates: TodoUpdate):
     """
-    Oppdaterer en eksisterende todo
-    Kun feltene som sendes inn blir oppdatert (partial update)
+    Oppdater eksisterende todo (partial update)
     """
-    for todo in todos:
+    for i, todo in enumerate(todos):
         if todo["id"] == todo_id:
-            if updates.title is not None:
-                todo["title"] = updates.title
-            if updates.completed is not None:
-                todo["completed"] = updates.completed
-            if updates.priority is not None:
-                todo["priority"] = updates.priority
-            return {"message": "Todo oppdatert!", "todo": todo}
+            update_data = updates.dict(exclude_unset=True)
+            
+            for key, value in update_data.items():
+                if value is not None:
+                    todos[i][key] = value
+            
+            return {"message": "Todo oppdatert!", "todo": todos[i]}
     
     raise HTTPException(status_code=404, detail="Todo ikke funnet")
 
-@app.delete("/todos/{todo_id}")
-def delete_todo(todo_id: int):
+@app.patch("/api/todos/{todo_id}/toggle")
+def toggle_todo(todo_id: str):
     """
-    Sletter en todo basert på ID
+    Toggle completed status
+    """
+    for i, todo in enumerate(todos):
+        if todo["id"] == todo_id:
+            todos[i]["completed"] = not todos[i]["completed"]
+            return {"message": "Status endret!", "todo": todos[i]}
+    
+    raise HTTPException(status_code=404, detail="Todo ikke funnet")
+
+@app.patch("/api/todos/{todo_id}/status")
+def update_status(todo_id: str, status: str):
+    """
+    Oppdater kun status
+    """
+    valid_statuses = ["todo", "in-progress", "review", "done"]
+    if status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Status må være en av: {valid_statuses}")
+    
+    for i, todo in enumerate(todos):
+        if todo["id"] == todo_id:
+            todos[i]["status"] = status
+            return {"message": "Status oppdatert!", "todo": todos[i]}
+    
+    raise HTTPException(status_code=404, detail="Todo ikke funnet")
+
+@app.post("/api/todos/{todo_id}/comments")
+def add_comment(todo_id: str, comment: CommentCreate):
+    """
+    Legg til kommentar på todo
+    """
+    for i, todo in enumerate(todos):
+        if todo["id"] == todo_id:
+            new_comment = {
+                "id": str(datetime.now().timestamp()),
+                "author": comment.author,
+                "text": comment.text,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            if not todos[i].get("comments"):
+                todos[i]["comments"] = []
+            
+            todos[i]["comments"].append(new_comment)
+            
+            return {"message": "Kommentar lagt til!", "comment": new_comment, "todo": todos[i]}
+    
+    raise HTTPException(status_code=404, detail="Todo ikke funnet")
+
+@app.delete("/api/todos/{todo_id}")
+def delete_todo(todo_id: str):
+    """
+    Slett todo
     """
     for i, todo in enumerate(todos):
         if todo["id"] == todo_id:
@@ -129,102 +208,40 @@ def delete_todo(todo_id: int):
     
     raise HTTPException(status_code=404, detail="Todo ikke funnet")
 
-# --- AI ANALYSE ENDEPUNKT ---
-
-@app.post("/ai/analyze")
-def analyze_task(request: AIRequest):
-    
-    
+@app.get("/api/stats")
+def get_stats():
     """
-    AI-endepunkt som analyserer oppgaver og gir intelligente forslag
-    Støtter actions: estimate, priority, plan, tips
+    Hent statistikk
     """
-    text = request.text.lower()
-    action = request.action
-
-    
-
-    # 1. ESTIMERE TIDSBRUK
-    # Sjekker om action er "estimate" og returnerer estimert tid i minutter
-    if action == "estimate":
-        time = 30  # Standard tid er 30 minutter
-
-        if any(word in text for word in ["rapport", "prosjekt"]):
-            time = 120
-        elif any(word in text for word in ["møte"]):
-            time = 60
-        elif any(word in text for word in ["epost", "ringe"]):
-            time = 15
-
-        return {"estimated_time": time}
-    
-    # 2. PRIORITERING
-    # Detekterer prioritet basert på nøkkelord i teksten
-    elif action == "priority":
-        priority = "medium"
-
-        if any(word in text for word in ["viktig", "urgent", "asap"]):
-            priority = "high"
-        elif any(word in text for word in ["kanskje", "senere"]):
-            priority = "low"
-
-        return {"priority": priority}
-    
-
-
-    # 3. DAGLIG PLAN
-    # Lager en prioritert plan for dagen basert på eksisterende todos
-    elif action == "plan":
-        if not request.todos:
-            return {"plan": []}
-        
-        # Sorterer todos: high prioritet først, deretter medium
-        #t for t ... går gjennom hver todo (ordbøl
-        high = [t for t in request.todos if t.get("priority") == "high"]
-        medium = [t for t in request.todos if t.get("priority") == "medium"]
-        
-        # Returner maksimalt 10 oppgaver (5 high + 5 medium)
-        plan = high[:5] + medium[:5]
-        return {"plan": plan}
-    
-
-
-    
-    # 4. TIPS
-    # Gir produktivitetstips til brukeren
-    elif action == "tips":
-        tips = [
-            "Start med de viktigste oppgavene først",
-            "Ta pauser hver 25. minutt (Pomodoro-teknikk)",
-            "Skru av varsler mens du jobber"
-        ]
-        return {"tips": tips}
-    
-
-
-    
-    # 5. FORSLAG TIL SUBTASKS
-    # Genererer subtasks basert på oppgavetype
-    else:
-        priority = "medium"
-        
-        # Detekter prioritetl
-        if any(word in text for word in ["viktig", "urgent", "asap"]):
-            priority = "high"
-        elif any(word in text for word in ["kanskje", "senere"]):
-            priority = "low"
-        
-        # Generer subtasks basert på oppgavetype
-        subtasks = []
-        if "rapport" in text or "oppgave" in text:
-            subtasks = ["Research og planlegging", "Skriv utkast", "Gjennomgang og sjekk"]
-        else:
-            subtasks = ["Start oppgaven", "Gjør ferdig", "Kvalitetssjekk"]
-        
-        return {
-            "suggested_priority": priority,
-            "subtasks": subtasks,
-            "tips": ["Sett av nok tid", "Fjern distraksjoner"]
+    return {
+        "total": len(todos),
+        "completed": len([t for t in todos if t["completed"]]),
+        "active": len([t for t in todos if not t["completed"]]),
+        "inProgress": len([t for t in todos if t["status"] == "in-progress"]),
+        "highPriority": len([t for t in todos if t["priority"] in ["high", "urgent"]]),
+        "statusCounts": {
+            "todo": len([t for t in todos if t["status"] == "todo"]),
+            "in-progress": len([t for t in todos if t["status"] == "in-progress"]),
+            "review": len([t for t in todos if t["status"] == "review"]),
+            "done": len([t for t in todos if t["status"] == "done"])
         }
+    }
 
+@app.delete("/api/todos")
+def clear_all_todos():
+    """
+    Slett alle todos (for testing)
+    """
+    global todos, next_id
+    todos = []
+    next_id = 1
+    return {"message": "Alle todos slettet!"}
 
+# Health check for Coolify
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "todos_count": len(todos)}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
