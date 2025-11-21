@@ -673,7 +673,6 @@ const Page: React.FC = () => {
                               setNewComment((e.target as any).value);
                               handleAddComment(todo.id);
                               (e.target as any).value = '';
-                            }
                           }}
                         />
                       </div>
