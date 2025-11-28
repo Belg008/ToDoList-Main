@@ -1,0 +1,257 @@
+/* macOS Sonoma – System Settings Style */
+
+.macos-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  height: 100vh;
+}
+
+/* SIDEBAR */
+
+.macos-sidebar {
+  backdrop-filter: blur(22px);
+  background: var(--sidebar-glass);
+  border-right: 1px solid var(--sidebar-border);
+  padding: 26px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.sidebar-title {
+  font-size: 19px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebar-item {
+  padding: 10px 12px;
+  font-size: 15px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  transition: background .15s, transform .12s;
+}
+
+.sidebar-item:hover {
+  background: rgba(0,0,0,0.04);
+  transform: translateY(-2px);
+}
+
+.sidebar-item.active {
+  background: rgba(0,122,255,0.15);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* CONTENT PANEL */
+
+.macos-content {
+  background: var(--panel-bg);
+  padding: 34px;
+  overflow-y: auto;
+}
+
+.content-card {
+  background: #fff;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 22px;
+  margin-bottom: 26px;
+  box-shadow: var(--shadow);
+}
+
+h1.section-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+/* INPUTS */
+
+.macos-input,
+.macos-select,
+.macos-textarea {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.12);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 15px;
+  outline: none;
+  transition: border-color .18s, box-shadow .18s;
+  margin-bottom: 16px;
+}
+
+.macos-input:focus,
+.macos-select:focus,
+.macos-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(0,122,255,0.30);
+}
+
+.macos-textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+/* BUTTON */
+
+.macos-button {
+  background: var(--accent);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, transform .12s;
+}
+
+.macos-button:hover {
+  background: #0062d6;
+  transform: translateY(-2px);
+}
+
+.macos-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* TODO CARDS */
+
+.todo-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.todo-card {
+  background: #fff;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.04);
+  transition: transform .12s;
+}
+
+.todo-card:hover {
+  transform: translateY(-4px);
+}
+
+.todo-card.completed {
+  opacity: 0.6;
+  background: #f0f0f3;
+}
+
+.todo-card.completed .todo-title {
+  text-decoration: line-through;
+}
+
+.todo-title {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-check {
+  color: #10b981;
+  font-size: 20px;
+}
+
+.icon-empty {
+  color: #9ca3af;
+  font-size: 20px;
+}
+
+.todo-description {
+  color: #666;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+/* STATUS / PRIORITY BADGES */
+
+.badges-row {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.badge {
+  padding: 5px 10px;
+  border-radius: 30px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-high {
+  background: #ffebe9;
+  color: #d40000;
+}
+
+.badge-medium {
+  background: #fff6d6;
+  color: #b88600;
+}
+
+.badge-low {
+  background: #e8ffe8;
+  color: #329400;
+}
+
+.delete-button {
+  background: #ff4444;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.delete-button:hover {
+  background: #cc0000;
+}
+
+/* Fade in animation */
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 900px) {
+  .macos-layout {
+    grid-template-columns: 1fr;
+  }
+  .macos-sidebar {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--sidebar-border);
+  }
+}
