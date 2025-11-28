@@ -6,6 +6,9 @@ WORKDIR /app
 # Installer nødvendige pakker
 RUN pip install fastapi uvicorn
 
+# Opprett data-mappe for persistent storage
+RUN mkdir -p /app/data
+
 # Kopier API-koden inn i containeren
 COPY fastapi.py .
 
