@@ -13,4 +13,4 @@ RUN mkdir -p /app/data
 COPY fastapi.py .
 
 # Start serveren (host 0.0.0.0 er viktig for at den skal nås utenfra containeren)
-CMD ["uvicorn", "fastapi:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "fastapi:app", "--host", "0.0.0.0", "--port", "8001"]
