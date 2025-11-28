@@ -3,6 +3,8 @@ from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional, List
 from datetime import datetime
+import json
+from pathlib import Path
 
 app = FastAPI()
 
@@ -15,7 +17,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Data models som matcher frontend
+# ==================== PERSISTENT STORAGE SETUP ====================
+DATA_DIR = Path("/app/data")
+DATA_DIR.mkdir(exist_ok=True)
+TODOS_FILE = DATA_DIR / "todos.json"
+
+def load_todos():
+    """Load todos from JSON file"""
+    if TODOS_FILE.exists():
+        try:
+            with open(TODOS_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return data.get('todos', []), data.get('next_id', 1)
+        except Exception as e:
+            print(f"Error loading todos: {e}")
+            return [], 1
+    return [], 1
+
+def save_todos(todos_list, next_id_val):
+    """Save todos to JSON file"""
+    try:
+        with open(TODOS_FILE, 'w', encoding='utf-8') as f:
+            json.dump({
+                'todos': todos_list,
+                'next_id': next_id_val
+            }, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Error saving todos: {e}")
+
+# Load existing data
+todos, next_id = load_todos()
+
+# ==================== DATA MODELS ====================
 class Comment(BaseModel):
     id: str
     author: str
@@ -59,14 +92,12 @@ class CommentCreate(BaseModel):
     author: str
     text: str
 
-# In-memory database (i produksjon, bruk ekte database)
-todos = []
-next_id = 1
+# ==================== ENDPOINTS ====================
 
 @app.get("/")
 def home():
     """Health check endpoint"""
-    return {"status": "ok", "message": "Smart Todo API"}
+    return {"status": "ok", "message": "Smart Todo API", "storage": "persistent"}
 
 @app.get("/api/todos")
 def get_todos(
@@ -123,8 +154,11 @@ def create_todo(todo: Todo):
     if not new_todo.get("subtasks"):
         new_todo["subtasks"] = []
     
-    todos.insert(0, new_todo)  # Legg til først i listen
+    todos.insert(0, new_todo)
     next_id += 1
+    
+    # SAVE TO FILE
+    save_todos(todos, next_id)
     
     return {"message": "Todo opprettet!", "todo": new_todo}
 
@@ -141,6 +175,9 @@ def update_todo(todo_id: str, updates: TodoUpdate):
                 if value is not None:
                     todos[i][key] = value
             
+            # SAVE TO FILE
+            save_todos(todos, next_id)
+            
             return {"message": "Todo oppdatert!", "todo": todos[i]}
     
     raise HTTPException(status_code=404, detail="Todo ikke funnet")
@@ -153,6 +190,10 @@ def toggle_todo(todo_id: str):
     for i, todo in enumerate(todos):
         if todo["id"] == todo_id:
             todos[i]["completed"] = not todos[i]["completed"]
+            
+            # SAVE TO FILE
+            save_todos(todos, next_id)
+            
             return {"message": "Status endret!", "todo": todos[i]}
     
     raise HTTPException(status_code=404, detail="Todo ikke funnet")
@@ -169,6 +210,10 @@ def update_status(todo_id: str, status: str):
     for i, todo in enumerate(todos):
         if todo["id"] == todo_id:
             todos[i]["status"] = status
+            
+            # SAVE TO FILE
+            save_todos(todos, next_id)
+            
             return {"message": "Status oppdatert!", "todo": todos[i]}
     
     raise HTTPException(status_code=404, detail="Todo ikke funnet")
@@ -192,6 +237,9 @@ def add_comment(todo_id: str, comment: CommentCreate):
             
             todos[i]["comments"].append(new_comment)
             
+            # SAVE TO FILE
+            save_todos(todos, next_id)
+            
             return {"message": "Kommentar lagt til!", "comment": new_comment, "todo": todos[i]}
     
     raise HTTPException(status_code=404, detail="Todo ikke funnet")
@@ -204,6 +252,10 @@ def delete_todo(todo_id: str):
     for i, todo in enumerate(todos):
         if todo["id"] == todo_id:
             deleted = todos.pop(i)
+            
+            # SAVE TO FILE
+            save_todos(todos, next_id)
+            
             return {"message": "Todo slettet!", "todo": deleted}
     
     raise HTTPException(status_code=404, detail="Todo ikke funnet")
@@ -235,12 +287,21 @@ def clear_all_todos():
     global todos, next_id
     todos = []
     next_id = 1
+    
+    # SAVE TO FILE
+    save_todos(todos, next_id)
+    
     return {"message": "Alle todos slettet!"}
 
 # Health check for Coolify
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "todos_count": len(todos)}
+    return {
+        "status": "healthy",
+        "todos_count": len(todos),
+        "storage": "persistent",
+        "data_file": str(TODOS_FILE)
+    }
 
 if __name__ == "__main__":
     import uvicorn
