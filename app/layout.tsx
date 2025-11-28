@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import Sidebar from '@/components/Sidebar';
 
 export const metadata: Metadata = {
   title: 'SmartTodo App',
@@ -15,12 +14,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div style={{ display: 'flex' }}>
-          <Sidebar />
-          <main style={{ flexGrow: 1, padding: '20px', marginLeft: '10rem' }}>
-            {children}
-          </main>
-        </div>
+        {children}
       </body>
     </html>
   );

@@ -37,6 +37,7 @@
   cursor: pointer;
   display: flex;
   justify-content: space-between;
+  align-items: center;
   transition: background .15s, transform .12s;
 }
 
@@ -49,6 +50,21 @@
   background: rgba(0,122,255,0.15);
   color: var(--accent);
   font-weight: 600;
+}
+
+.count-badge {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 24px;
+  text-align: center;
+}
+
+.sidebar-item.active .count-badge {
+  background: rgba(0, 122, 255, 0.3);
+  color: var(--accent);
 }
 
 /* CONTENT PANEL */
@@ -212,6 +228,11 @@ h1.section-title {
   color: #329400;
 }
 
+.badge-completed {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
 .delete-button {
   background: #ff4444;
   color: white;
@@ -224,6 +245,15 @@ h1.section-title {
 
 .delete-button:hover {
   background: #cc0000;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #9ca3af;
+  font-size: 16px;
+  font-style: italic;
 }
 
 /* Fade in animation */
