@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+
 import "./Page.macos.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
