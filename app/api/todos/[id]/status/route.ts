@@ -4,9 +4,10 @@ import { loadTodos, saveTodos } from '@/lib/storage';
 // PATCH /api/todos/[id]/status - Update status
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { status } = await request.json();
     const validStatuses = ['todo', 'in-progress', 'review', 'done'];
 
@@ -18,7 +19,7 @@ export async function PATCH(
     }
 
     const data = loadTodos();
-    const index = data.todos.findIndex(t => t.id === params.id);
+    const index = data.todos.findIndex(t => t.id === id);
 
     if (index === -1) {
       return NextResponse.json(

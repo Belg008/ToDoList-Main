@@ -4,10 +4,11 @@ import { loadTodos, saveTodos } from '@/lib/storage';
 // PATCH /api/todos/[id]/toggle - Toggle completed status
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const data = loadTodos();
-  const index = data.todos.findIndex(t => t.id === params.id);
+  const index = data.todos.findIndex(t => t.id === id);
 
   if (index === -1) {
     return NextResponse.json(

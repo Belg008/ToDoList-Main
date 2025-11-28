@@ -4,10 +4,11 @@ import { loadTodos, saveTodos } from '@/lib/storage';
 // GET /api/todos/[id] - Get specific todo
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const data = loadTodos();
-  const todo = data.todos.find(t => t.id === params.id);
+  const todo = data.todos.find(t => t.id === id);
 
   if (!todo) {
     return NextResponse.json(
@@ -22,12 +23,13 @@ export async function GET(
 // PUT /api/todos/[id] - Update todo
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const updates = await request.json();
     const data = loadTodos();
-    const index = data.todos.findIndex(t => t.id === params.id);
+    const index = data.todos.findIndex(t => t.id === id);
 
     if (index === -1) {
       return NextResponse.json(
@@ -59,10 +61,11 @@ export async function PUT(
 // DELETE /api/todos/[id] - Delete todo
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const data = loadTodos();
-  const index = data.todos.findIndex(t => t.id === params.id);
+  const index = data.todos.findIndex(t => t.id === id);
 
   if (index === -1) {
     return NextResponse.json(
