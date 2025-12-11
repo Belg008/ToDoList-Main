@@ -19,7 +19,7 @@ app.add_middleware(
 
 # ==================== PERSISTENT STORAGE SETUP ====================
 
-DATA_DIR = Path("/app/uploads")
+DATA_DIR = Path("/app/data")
 DATA_DIR.mkdir(exist_ok=True)
 TODOS_FILE = DATA_DIR / "Fremforing.json"
 
