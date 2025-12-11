@@ -16,23 +16,18 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 
-# Set NODE_ENV to production
 ENV NODE_ENV=production
 
-# Copy package files and install production dependencies only
 COPY package*.json ./
 RUN npm ci --only=production
 
-# Copy built application from builder
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/next.config.mjs ./next.config.mjs
 
-# Create data directory for persistent storage
-RUN mkdir -p /app/uploads
+# Create data directory (but actual persistence comes from volume mount)
+RUN mkdir -p /app/data && chmod 777 /app/data
 
-# Expose port 3000
 EXPOSE 3000
 
-# Start Next.js
 CMD ["npm", "start"]
