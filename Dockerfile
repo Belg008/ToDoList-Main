@@ -26,7 +26,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/next.config.mjs ./next.config.mjs
 
 # Create data directory (but actual persistence comes from volume mount)
-RUN mkdir -p /app/uploads && chmod 777 /app/uploads
+RUN mkdir -p /app/data && chmod 777 /app/data
 
 EXPOSE 3000
 
