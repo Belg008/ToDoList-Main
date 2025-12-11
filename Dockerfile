@@ -29,7 +29,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/next.config.mjs ./next.config.mjs
 
 # Create data directory for persistent storage
-RUN mkdir -p /app/data
+RUN mkdir -p /app/uploads
 
 # Expose port 3000
 EXPOSE 3000
