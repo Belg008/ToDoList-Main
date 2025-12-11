@@ -21,7 +21,7 @@ app.add_middleware(
 
 DATA_DIR = Path("/app/data")
 DATA_DIR.mkdir(exist_ok=True)
-TODOS_FILE = DATA_DIR / "Fremforing.json"
+TODOS_FILE = DATA_DIR / "todos.json"
 
 def load_todos():
     """Load todos from JSON file"""
