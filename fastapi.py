@@ -19,6 +19,35 @@ app.add_middleware(
 
 # ==================== PERSISTENT STORAGE SETUP ====================
 
+DATA_DIR = Path("/app/data")
+DATA_DIR.mkdir(exist_ok=True)
+TODOS_FILE = DATA_DIR / "todos.json"
+
+def load_todos():
+    """Load todos from JSON file"""
+    if TODOS_FILE.exists():
+        try:
+            with open(TODOS_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return data.get('todos', []), data.get('next_id', 1)
+        except Exception as e:
+            print(f"Error loading todos: {e}")
+            return [], 1
+    return [], 1
+
+def save_todos(todos_list, next_id_val):
+    """Save todos to JSON file"""
+    try:
+        with open(TODOS_FILE, 'w', encoding='utf-8') as f:
+            json.dump({
+                'todos': todos_list,
+                'next_id': next_id_val
+            }, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Error saving todos: {e}")
+
+# Load existing data
+todos, next_id = load_todos()
 
 # ==================== DATA MODELS ====================
 class Comment(BaseModel):
